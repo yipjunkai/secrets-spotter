@@ -1,0 +1,27 @@
+.secrets-spotter-highlight {
+  background-color: rgba(231, 76, 60, 0.3) !important;
+  border: 2px solid #e74c3c !important;
+  border-radius: 2px !important;
+  position: relative !important;
+  cursor: pointer !important;
+}
+
+.secrets-spotter-highlight[data-severity="Critical"] {
+  border-color: #c0392b !important;
+  background-color: rgba(192, 57, 43, 0.3) !important;
+}
+
+.secrets-spotter-highlight[data-severity="High"] {
+  border-color: #e67e22 !important;
+  background-color: rgba(230, 126, 34, 0.3) !important;
+}
+
+.secrets-spotter-highlight[data-severity="Medium"] {
+  border-color: #f39c12 !important;
+  background-color: rgba(243, 156, 18, 0.2) !important;
+}
+
+.secrets-spotter-highlight[data-severity="Low"] {
+  border-color: #3498db !important;
+  background-color: rgba(52, 152, 219, 0.2) !important;
+}

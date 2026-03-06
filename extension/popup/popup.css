@@ -1,0 +1,126 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 360px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #333;
+  background: #fafafa;
+}
+
+#app {
+  padding: 16px;
+}
+
+h1 {
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: #1a1a1a;
+}
+
+#status {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+#summary {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+
+#findings-list {
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.finding {
+  padding: 8px;
+  margin-bottom: 4px;
+  background: #fff;
+  border-left: 3px solid #ccc;
+  border-radius: 2px;
+}
+
+.finding strong {
+  display: block;
+  font-size: 12px;
+}
+
+.code-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.finding code {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+  overflow-x: auto;
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 3px 5px;
+  background: #f5f5f5;
+  border-radius: 3px;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 10px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+}
+
+.copy-btn:hover {
+  background: #eee;
+  border-color: #999;
+}
+
+.finding small {
+  color: #999;
+  font-weight: normal;
+}
+
+.finding .source-url {
+  font-size: 10px;
+  color: #aaa;
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+.severity-critical { border-left-color: #c0392b; }
+.severity-high { border-left-color: #e67e22; }
+.severity-medium { border-left-color: #f39c12; }
+.severity-low { border-left-color: #3498db; }
+
+span.severity-critical { color: #c0392b; font-weight: bold; }
+span.severity-high { color: #e67e22; font-weight: bold; }
+span.severity-medium { color: #f39c12; font-weight: bold; }
+span.severity-low { color: #3498db; }
+
+.hidden {
+  display: none;
+}
+
+#no-findings {
+  text-align: center;
+  padding: 20px;
+  color: #4CAF50;
+  font-weight: bold;
+}

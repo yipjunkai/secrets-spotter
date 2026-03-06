@@ -1,0 +1,18 @@
+# Rust
+rust-core/target/
+
+# WASM build output
+extension/wasm/*.wasm
+extension/wasm/*.js
+
+# OS
+.DS_Store
+
+# Environment / secrets
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
