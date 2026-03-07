@@ -95,7 +95,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       // Preprocess based on source type
       let textToScan = message.text;
-      if (message.source === 'cookie') {
+      if (message.source === 'cookie' || message.source === 'network:cookie') {
         textToScan = parse_cookies(message.text);
       } else if (message.source === 'dom:structured') {
         textToScan = format_attributes(message.text);
