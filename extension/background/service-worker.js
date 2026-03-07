@@ -10,8 +10,7 @@ import init, {
 let wasmReady = false;
 let wasmInitPromise = null;
 
-// Allow content scripts to access session storage
-chrome.storage.session.setAccessLevel?.({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' });
+chrome.storage.session.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' });
 
 async function initWasm() {
   if (wasmReady) return;

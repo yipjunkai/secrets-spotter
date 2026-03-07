@@ -33,7 +33,7 @@
       text,
       source,
       contentType: contentType || '',
-    }, '*');
+    }, window.location.origin);
   }
 
   // =========================================================================
@@ -363,7 +363,7 @@
     window.postMessage({
       type: '__SECRETS_SPOTTER_NAVIGATION__',
       url: currentUrl,
-    }, '*');
+    }, window.location.origin);
 
     scanCookies();
   }

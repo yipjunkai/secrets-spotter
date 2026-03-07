@@ -20,7 +20,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       .map(([s, c]) => `${s}: ${c}`)
       .join(', ');
 
-    statusEl.innerHTML = `<small>${scannedCount} scanned, ${skippedCount} skipped${sourceBreakdown ? ` (${sourceBreakdown})` : ''}</small>`;
+    statusEl.textContent = '';
+    const statusSmall = document.createElement('small');
+    statusSmall.textContent = `${scannedCount} scanned, ${skippedCount} skipped${sourceBreakdown ? ` (${sourceBreakdown})` : ''}`;
+    statusEl.appendChild(statusSmall);
 
     listEl.innerHTML = '';
     noFindingsEl.classList.add('hidden');
@@ -36,12 +39,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       grouped[f.severity] = (grouped[f.severity] || 0) + 1;
     }
 
-    summaryEl.innerHTML = `
-      <strong>${findings.length} secret(s) detected</strong><br>
-      ${Object.entries(grouped)
-        .map(([s, c]) => `<span class="severity-${s.toLowerCase()}">${s}: ${c}</span>`)
-        .join(' | ')}
-    `;
+    summaryEl.textContent = '';
+    const strong = document.createElement('strong');
+    strong.textContent = `${findings.length} secret(s) detected`;
+    summaryEl.appendChild(strong);
+    summaryEl.appendChild(document.createElement('br'));
+    const entries = Object.entries(grouped);
+    entries.forEach(([s, c], i) => {
+      const span = document.createElement('span');
+      span.className = `severity-${s.toLowerCase()}`;
+      span.textContent = `${s}: ${c}`;
+      summaryEl.appendChild(span);
+      if (i < entries.length - 1) {
+        summaryEl.appendChild(document.createTextNode(' | '));
+      }
+    });
 
     for (const f of findings) {
       const li = document.createElement('li');
@@ -49,7 +61,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const sourceLabel = f.source?.startsWith('network:') ? `[${f.source.replace('network:', '').toUpperCase()}]` : '[DOM]';
 
       const header = document.createElement('strong');
-      header.innerHTML = `${f.label} <small>${sourceLabel}</small>`;
+      header.appendChild(document.createTextNode(f.label + ' '));
+      const headerSmall = document.createElement('small');
+      headerSmall.textContent = sourceLabel;
+      header.appendChild(headerSmall);
 
       const codeRow = document.createElement('div');
       codeRow.className = 'code-row';
