@@ -1,6 +1,28 @@
 (function () {
   'use strict';
 
+  function logError(msg, stack) {
+    if (!isContextValid()) return;
+    try {
+      chrome.runtime.sendMessage({
+        type: 'LOG_ERROR',
+        src: 'content',
+        msg,
+        stack: stack || null,
+        url: window.location.href,
+      });
+    } catch { /* context destroyed */ }
+  }
+
+  window.addEventListener('error', (event) => {
+    logError(event.message, event.error?.stack);
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const msg = event.reason?.message || String(event.reason);
+    logError(msg, event.reason?.stack);
+  });
+
   let scanTimeout = null;
   // Hash-based cache to skip already-scanned text
   const scannedHashes = new Set();

@@ -106,4 +106,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   fetchFindings();
+
+  const debugSection = document.getElementById('debug-section');
+  const debugContent = document.getElementById('debug-log-content');
+  const clearBtn = document.getElementById('clear-log-btn');
+
+  debugSection.addEventListener('toggle', () => {
+    if (!debugSection.open) return;
+    chrome.runtime.sendMessage({ type: 'GET_ERROR_LOG' }, (res) => {
+      const logs = res?.errorLog || [];
+      if (logs.length === 0) {
+        debugContent.textContent = 'No errors logged.';
+        clearBtn.classList.add('hidden');
+        return;
+      }
+      clearBtn.classList.remove('hidden');
+      debugContent.innerHTML = '';
+      for (const entry of logs.slice().reverse()) {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        const time = new Date(entry.ts).toLocaleTimeString();
+        div.textContent = `[${time}] [${entry.src}] ${entry.msg}`;
+        if (entry.url) {
+          div.title = entry.url;
+        }
+        debugContent.appendChild(div);
+      }
+    });
+  });
+
+  clearBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ type: 'CLEAR_ERROR_LOG' }, () => {
+      debugContent.textContent = 'No errors logged.';
+      clearBtn.classList.add('hidden');
+    });
+  });
 });

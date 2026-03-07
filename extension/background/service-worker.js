@@ -10,7 +10,41 @@ import init, {
 let wasmReady = false;
 let wasmInitPromise = null;
 
+const MAX_LOG_ENTRIES = 100;
+
+async function appendToLog(entry) {
+  try {
+    const { errorLog = [] } = await chrome.storage.local.get('errorLog');
+    const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const filtered = errorLog.filter(e => e.ts > cutoff);
+    filtered.push(entry);
+    if (filtered.length > MAX_LOG_ENTRIES) {
+      filtered.splice(0, filtered.length - MAX_LOG_ENTRIES);
+    }
+    await chrome.storage.local.set({ errorLog: filtered });
+  } catch (e) {
+    console.warn('Secrets Spotter: failed to write error log:', e.message);
+  }
+}
+
+function logEntry(src, msg, stack, url) {
+  return { ts: Date.now(), src, msg, stack: stack || null, url: url || null };
+}
+
+self.addEventListener('error', (event) => {
+  appendToLog(logEntry('service-worker', event.message, event.error?.stack));
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  const msg = event.reason?.message || String(event.reason);
+  appendToLog(logEntry('service-worker', msg, event.reason?.stack));
+});
+
 chrome.storage.session.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' });
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({ errorLog: [] });
+});
 
 async function initWasm() {
   if (wasmReady) return;
@@ -164,7 +198,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ findings: newFindings });
     }).catch((err) => {
       console.warn('Secrets Spotter: scan failed:', err.message);
+      appendToLog(logEntry('service-worker', `scan failed: ${err.message}`, err.stack));
       sendResponse({ findings: [] });
+    });
+    return true;
+  }
+
+  if (message.type === 'LOG_ERROR') {
+    appendToLog(logEntry(
+      message.src || 'unknown',
+      message.msg || '',
+      message.stack,
+      message.url
+    ));
+    sendResponse({});
+    return;
+  }
+
+  if (message.type === 'GET_ERROR_LOG') {
+    chrome.storage.local.get('errorLog').then(({ errorLog = [] }) => {
+      sendResponse({ errorLog });
+    });
+    return true;
+  }
+
+  if (message.type === 'CLEAR_ERROR_LOG') {
+    chrome.storage.local.set({ errorLog: [] }).then(() => {
+      sendResponse({});
     });
     return true;
   }
@@ -181,6 +241,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     }).catch((err) => {
       console.warn('Secrets Spotter: get findings failed:', err.message);
+      appendToLog(logEntry('service-worker', `get findings failed: ${err.message}`, err.stack));
       sendResponse({ findings: [], url: '', scannedCount: 0 });
     });
     return true;

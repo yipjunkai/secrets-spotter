@@ -124,3 +124,45 @@ span.severity-low { color: #3498db; }
   color: #4CAF50;
   font-weight: bold;
 }
+
+#debug-section {
+  margin-top: 16px;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 8px;
+}
+
+#debug-section summary {
+  font-size: 11px;
+  color: #888;
+  cursor: pointer;
+}
+
+#debug-log-content {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #666;
+  font-family: monospace;
+}
+
+.log-entry {
+  padding: 2px 0;
+  border-bottom: 1px solid #f0f0f0;
+  word-break: break-all;
+}
+
+#clear-log-btn {
+  margin-top: 6px;
+  padding: 2px 8px;
+  font-size: 10px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+}
+
+#clear-log-btn:hover {
+  background: #eee;
+}
