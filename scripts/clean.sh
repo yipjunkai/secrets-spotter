@@ -6,7 +6,7 @@ RUST_CRATE="$PROJECT_ROOT/rust-core"
 WASM_OUT="$PROJECT_ROOT/extension/wasm"
 
 echo "==> Cleaning WASM build output..."
-rm -rf "$WASM_OUT"/*.wasm "$WASM_OUT"/*.js
+rm -rf "$WASM_OUT"
 
 echo "==> Cleaning Rust build artifacts..."
 cd "$RUST_CRATE"
