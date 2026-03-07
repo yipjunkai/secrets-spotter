@@ -61,10 +61,13 @@ impl SecretDetector {
     }
 
     fn extract_value(matched: &str) -> &str {
-        matched
-            .rsplit(['=', ':'])
-            .next()
-            .unwrap_or(matched)
+        // Split on the first `=` or `:` (the assignment operator), not the last,
+        // so base64 padding (`==`) in the value is preserved.
+        let after_sep = matched
+            .find(['=', ':'])
+            .map(|i| &matched[i + 1..])
+            .unwrap_or(matched);
+        after_sep
             .trim()
             .trim_matches(|c| c == '\'' || c == '"' || c == ' ')
     }
