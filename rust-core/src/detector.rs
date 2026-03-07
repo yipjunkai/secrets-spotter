@@ -180,7 +180,7 @@ impl SecretDetector {
         let mut merged = Vec::with_capacity(existing.len() + new.len());
 
         for f in existing.into_iter().chain(new.into_iter()) {
-            let key = format!("{}:{}", f.label, f.full_match);
+            let key = format!("{}:{}:{}", f.label, f.full_match, f.start);
             if seen.insert(key) {
                 merged.push(f);
             }

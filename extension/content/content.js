@@ -105,8 +105,9 @@
     if (event.origin !== window.location.origin) return;
 
     if (event.data?.type === '__SECRETS_SPOTTER_NAVIGATION__') {
-      // SPA navigation — clear cache and re-scan after new content renders
+      // SPA navigation — clear cache, reset service worker tab data, and re-scan
       scannedHashes.clear();
+      chrome.runtime.sendMessage({ type: 'CLEAR_TAB' });
       setTimeout(() => scanPage(), 500);
       return;
     }
@@ -174,7 +175,9 @@
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) {
-          pendingNodes.push(node);
+          if (pendingNodes.length < 1000) {
+            pendingNodes.push(node);
+          }
         }
       }
     }

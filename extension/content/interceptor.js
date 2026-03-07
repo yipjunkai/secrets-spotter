@@ -255,14 +255,35 @@
       // Capture default 'message' events
       instance.addEventListener('message', onMessage);
 
-      // Wrap addEventListener to also capture custom SSE event types
+      // Wrap addEventListener/removeEventListener to capture custom SSE event types
       const origAdd = instance.addEventListener.bind(instance);
+      const origRemove = instance.removeEventListener.bind(instance);
       const hookedTypes = new Set(['message', 'open', 'error']);
+      const customTypeCounts = new Map();
+
       instance.addEventListener = function (type, listener, options) {
         origAdd(type, listener, options);
         if (!hookedTypes.has(type)) {
           hookedTypes.add(type);
+          customTypeCounts.set(type, 0);
           origAdd(type, onMessage);
+        }
+        if (customTypeCounts.has(type)) {
+          customTypeCounts.set(type, customTypeCounts.get(type) + 1);
+        }
+      };
+
+      instance.removeEventListener = function (type, listener, options) {
+        origRemove(type, listener, options);
+        if (customTypeCounts.has(type)) {
+          const count = customTypeCounts.get(type) - 1;
+          if (count <= 0) {
+            origRemove(type, onMessage);
+            customTypeCounts.delete(type);
+            hookedTypes.delete(type);
+          } else {
+            customTypeCounts.set(type, count);
+          }
         }
       };
 

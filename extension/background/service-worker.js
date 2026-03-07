@@ -73,6 +73,18 @@ function normalizeSource(source) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'CLEAR_TAB') {
+    const tabId = sender.tab?.id;
+    if (tabId != null) {
+      removeTabData(tabId).then(() => {
+        updateBadge(tabId, 0);
+        sendResponse({});
+      });
+    } else {
+      sendResponse({});
+    }
+    return true;
+  }
   if (message.type === 'SCAN_TEXT') {
     const tabId = sender.tab?.id;
     initWasm().then(async () => {
