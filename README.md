@@ -32,7 +32,10 @@ secrets-spotter/
 │       ├── lib.rs           # WASM entry point (scan_text, pattern_count)
 │       ├── detector.rs      # Detection engine + false-positive filtering
 │       ├── patterns.rs      # 30+ secret regex patterns
-│       └── types.rs         # SecretKind enum, Severity, SecretFinding
+│       ├── types.rs         # SecretKind enum, Severity, SecretFinding
+│       ├── filter.rs        # URL/content filtering (skip CDNs, media, etc.)
+│       ├── cookies.rs       # Cookie parsing utility
+│       └── attributes.rs    # HTML attribute formatting utility
 ├── extension/               # Chrome extension (Manifest V3)
 │   ├── manifest.json
 │   ├── background/
@@ -47,6 +50,9 @@ secrets-spotter/
 │   │   └── popup.css
 │   ├── icons/
 │   └── wasm/                # Compiled WASM output (built artifacts)
+├── .github/workflows/
+│   ├── verify.yml           # CI: secret scanning, lint, WASM build
+│   └── release.yml          # Builds + packages extension ZIP on version tags
 └── scripts/
     └── build.sh             # Builds Rust → WASM via wasm-pack
 ```
@@ -76,13 +82,17 @@ This compiles the Rust core to WASM and outputs it to `extension/wasm/`.
 
 Browse any website. The extension icon badge shows the count of secrets found. Click the icon to view findings grouped by severity, with redacted previews and copy-to-clipboard for full values.
 
+## Release
+
+Tagged versions (`v*`) trigger the [release workflow](.github/workflows/release.yml), which builds the WASM core and publishes a packaged extension ZIP as a GitHub release artifact.
+
 ## License
 
-mpm is licensed under either of
+Secrets Spotter is licensed under either of
 
 - [MIT License](LICENSE-MIT)
 - [Apache License 2.0](LICENSE-APACHE)
 
 at your option.
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in **mpm** by you, as defined in the Apache-2.0 license, shall be dually licensed as above, without any additional terms or conditions.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in **Secrets Spotter** by you, as defined in the Apache-2.0 license, shall be dually licensed as above, without any additional terms or conditions.
