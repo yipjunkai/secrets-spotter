@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Secrets Spotter",
+  "name": "Secrets Spotter - API Key & Leak Detector",
   "version": "1.1.0",
-  "description": "Scans web pages and network traffic for exposed secrets (API keys, tokens, passwords) using Rust/WASM",
-  "permissions": ["activeTab", "webNavigation"],
+  "description": "Detects exposed API keys, tokens, passwords, and secrets in web pages and network traffic. Scans DOM, fetch, XHR, WebSocket, and cookies in real time.",
+  "permissions": ["activeTab", "storage", "webNavigation"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup/popup.html",
