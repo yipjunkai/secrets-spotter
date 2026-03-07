@@ -266,7 +266,7 @@ lazy_static! {
         // Bearer Token in Authorization header
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:authorization|auth)\s*[:=]\s*['\x22]?Bearer\s+([A-Za-z0-9_\-\.]{20,})['\x22]?"#
+                r#"(?i)(?:authorization|auth)\s*[:=]\s*['\x22]?Bearer\s+([A-Za-z0-9_\-\.]{20,512})['\x22]?"#
             ).unwrap(),
             kind: SecretKind::BearerToken,
             label: "Bearer Token",
@@ -275,7 +275,7 @@ lazy_static! {
         // Generic Token assignment
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:api[_\-]?token|auth[_\-]?token|access[_\-]?token|client[_\-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9_\-\.]{20,})['\x22]"#
+                r#"(?i)(?:api[_\-]?token|auth[_\-]?token|access[_\-]?token|client[_\-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9_\-\.]{20,512})['\x22]"#
             ).unwrap(),
             kind: SecretKind::GenericToken,
             label: "Generic API Token",

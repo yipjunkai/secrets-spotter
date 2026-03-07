@@ -8,7 +8,8 @@ pub fn parse_cookies(raw: &str) -> String {
             if key.is_empty() || value.is_empty() {
                 return None;
             }
-            Some(format!("{key}=\"{value}\""))
+            let escaped = value.replace('"', "\\\"");
+            Some(format!("{key}=\"{escaped}\""))
         })
         .collect::<Vec<_>>()
         .join("\n")

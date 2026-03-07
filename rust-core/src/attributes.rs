@@ -15,7 +15,7 @@ pub fn format_attributes(pairs_json: &str) -> String {
     pairs
         .iter()
         .filter(|p| !p.name.is_empty() && p.value.len() >= 8)
-        .map(|p| format!("{}=\"{}\"", p.name, p.value))
+        .map(|p| format!("{}=\"{}\"", p.name, p.value.replace('"', "&quot;")))
         .collect::<Vec<_>>()
         .join("\n")
 }

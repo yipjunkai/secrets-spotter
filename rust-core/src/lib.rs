@@ -15,8 +15,20 @@ pub fn init() {
     console_error_panic_hook::set_once();
 }
 
+const MAX_SCAN_SIZE: usize = 2 * 1024 * 1024; // 2MB
+
 #[wasm_bindgen]
 pub fn scan_text(text: &str) -> JsValue {
+    let text = if text.len() > MAX_SCAN_SIZE {
+        // Find a valid UTF-8 char boundary at or before the limit
+        let mut end = MAX_SCAN_SIZE;
+        while end > 0 && !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        &text[..end]
+    } else {
+        text
+    };
     let findings = SecretDetector::scan(text);
     serde_wasm_bindgen::to_value(&findings).unwrap()
 }

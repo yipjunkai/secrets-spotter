@@ -27,6 +27,8 @@ lazy_static! {
     ).unwrap();
 }
 
+const MAX_MATCH_LEN: usize = 2048;
+
 pub struct SecretDetector;
 
 impl SecretDetector {
@@ -35,6 +37,9 @@ impl SecretDetector {
 
         for pattern in PATTERNS.iter() {
             for mat in pattern.regex.find_iter(text) {
+                if mat.len() > MAX_MATCH_LEN {
+                    continue;
+                }
                 let matched = mat.as_str().to_string();
 
                 // For generic patterns, filter out false positives
