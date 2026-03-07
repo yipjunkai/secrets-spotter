@@ -205,4 +205,12 @@
   if (target) {
     observer.observe(target, { childList: true, subtree: true });
   }
+
+  window.addEventListener('pagehide', () => {
+    if (observer) {
+      observer.disconnect();
+    }
+    clearTimeout(scanTimeout);
+    pendingNodes = [];
+  });
 })();

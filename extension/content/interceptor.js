@@ -16,6 +16,8 @@
 
   const SKIP_CDN_HOSTS = /^https?:\/\/(cdnjs\.cloudflare\.com|unpkg\.com|cdn\.jsdelivr\.net|ajax\.googleapis\.com|cdn\.bootcdn\.net|code\.jquery\.com|stackpath\.bootstrapcdn\.com|maxcdn\.bootstrapcdn\.com|fonts\.googleapis\.com|use\.fontawesome\.com|cdn\.tailwindcss\.com)/i;
 
+  const fetchController = new AbortController();
+
   function shouldScan(url, contentType) {
     if (SKIP_EXTENSIONS.test(url)) return false;
     if (SKIP_PATHS.test(url)) return false;
@@ -193,6 +195,15 @@
         } catch {}
       });
 
+      function wsCleanup() {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+        if (buffer.length > 0) flushBuffer();
+      }
+
+      instance.addEventListener('close', wsCleanup);
+      instance.addEventListener('error', wsCleanup);
+
       return instance;
     };
 
@@ -287,6 +298,14 @@
         }
       };
 
+      instance.addEventListener('error', () => {
+        if (instance.readyState === EventSource.CLOSED) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+          if (buffer.length > 0) flushBuffer();
+        }
+      });
+
       return instance;
     };
 
@@ -311,7 +330,7 @@
       if (!shouldScan(src, '')) continue;
 
       // Use originalFetch to avoid triggering our own fetch() interceptor
-      originalFetch(src, { credentials: 'include' })
+      originalFetch(src, { credentials: 'include', signal: fetchController.signal })
         .then((res) => {
           if (!res.ok) return;
           const ct = res.headers.get('content-type') || '';
@@ -336,7 +355,7 @@
       if (!shouldScan(href, '')) continue;
 
       // Use originalFetch to avoid triggering our own fetch() interceptor
-      originalFetch(href, { credentials: 'include' })
+      originalFetch(href, { credentials: 'include', signal: fetchController.signal })
         .then((res) => {
           if (!res.ok) return;
           return res.text();
@@ -405,5 +424,9 @@
 
   window.addEventListener('popstate', () => onNavigation());
   window.addEventListener('hashchange', () => onNavigation());
+
+  window.addEventListener('pagehide', () => {
+    fetchController.abort();
+  });
 
 })();
