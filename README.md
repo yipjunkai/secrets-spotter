@@ -13,7 +13,7 @@ A Chrome extension that scans web pages and network traffic for exposed secrets 
 
 ## How It Works
 
-```
+```text
 Page loaded → interceptor.js patches network APIs
            → content.js extracts DOM text
            → Background service worker runs WASM scanner
@@ -24,7 +24,7 @@ Page loaded → interceptor.js patches network APIs
 
 ## Project Structure
 
-```
+```text
 secrets-spotter/
 ├── rust-core/               # Rust WASM core
 │   ├── Cargo.toml
@@ -75,3 +75,14 @@ This compiles the Rust core to WASM and outputs it to `extension/wasm/`.
 ## Usage
 
 Browse any website. The extension icon badge shows the count of secrets found. Click the icon to view findings grouped by severity, with redacted previews and copy-to-clipboard for full values.
+
+## License
+
+mpm is licensed under either of
+
+- [MIT License](LICENSE-MIT)
+- [Apache License 2.0](LICENSE-APACHE)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in **mpm** by you, as defined in the Apache-2.0 license, shall be dually licensed as above, without any additional terms or conditions.
