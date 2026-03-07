@@ -107,14 +107,14 @@ impl SecretDetector {
                 if Self::shannon_entropy(value) < 3.5 {
                     return true;
                 }
-                // Must contain at least 2 of: uppercase, lowercase, digits, symbols/non-ASCII
+                // Must contain at least 2 of: uppercase, lowercase, digits
+                // (symbols/non-ASCII alone don't count toward the threshold to avoid
+                // false positives like CSS hashes with only lowercase + symbols)
                 let has_upper = value.chars().any(|c| c.is_ascii_uppercase());
                 let has_lower = value.chars().any(|c| c.is_ascii_lowercase());
                 let has_digit = value.chars().any(|c| c.is_ascii_digit());
-                let has_other = value.chars().any(|c| !c.is_ascii_alphanumeric());
-                let char_classes =
-                    has_upper as u8 + has_lower as u8 + has_digit as u8 + has_other as u8;
-                if char_classes < 2 {
+                let alnum_classes = has_upper as u8 + has_lower as u8 + has_digit as u8;
+                if alnum_classes < 2 {
                     return true;
                 }
                 false
@@ -194,6 +194,12 @@ impl SecretDetector {
             }
         }
 
-        best.into_values().collect()
+        let mut result: Vec<SecretFinding> = best.into_values().collect();
+        result.sort_by(|a, b| {
+            a.severity
+                .cmp(&b.severity)
+                .then_with(|| a.full_match.cmp(&b.full_match))
+        });
+        result
     }
 }

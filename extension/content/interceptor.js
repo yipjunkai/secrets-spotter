@@ -270,30 +270,29 @@
       const origAdd = instance.addEventListener.bind(instance);
       const origRemove = instance.removeEventListener.bind(instance);
       const hookedTypes = new Set(['message', 'open', 'error']);
-      const customTypeCounts = new Map();
+      const customTypeListeners = new Map();
 
       instance.addEventListener = function (type, listener, options) {
         origAdd(type, listener, options);
         if (!hookedTypes.has(type)) {
           hookedTypes.add(type);
-          customTypeCounts.set(type, 0);
+          customTypeListeners.set(type, new Set());
           origAdd(type, onMessage);
         }
-        if (customTypeCounts.has(type)) {
-          customTypeCounts.set(type, customTypeCounts.get(type) + 1);
+        if (customTypeListeners.has(type)) {
+          customTypeListeners.get(type).add(listener);
         }
       };
 
       instance.removeEventListener = function (type, listener, options) {
         origRemove(type, listener, options);
-        if (customTypeCounts.has(type)) {
-          const count = customTypeCounts.get(type) - 1;
-          if (count <= 0) {
+        if (customTypeListeners.has(type)) {
+          const listeners = customTypeListeners.get(type);
+          listeners.delete(listener);
+          if (listeners.size === 0) {
             origRemove(type, onMessage);
-            customTypeCounts.delete(type);
+            customTypeListeners.delete(type);
             hookedTypes.delete(type);
-          } else {
-            customTypeCounts.set(type, count);
           }
         }
       };
@@ -424,6 +423,11 @@
 
   window.addEventListener('popstate', () => onNavigation());
   window.addEventListener('hashchange', () => onNavigation());
+
+  // Listen for context invalidation signal from ISOLATED world content script
+  window.addEventListener('__SECRETS_SPOTTER_CLEANUP__', () => {
+    fetchController.abort();
+  });
 
   window.addEventListener('pagehide', () => {
     fetchController.abort();

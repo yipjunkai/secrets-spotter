@@ -105,10 +105,10 @@
     if (event.origin !== window.location.origin) return;
 
     if (event.data?.type === '__SECRETS_SPOTTER_NAVIGATION__') {
-      // SPA navigation — clear cache, reset service worker tab data, and re-scan
+      // SPA navigation — clear DOM findings but keep network findings, then re-scan
       scannedHashes.clear();
-      chrome.runtime.sendMessage({ type: 'CLEAR_TAB' });
-      setTimeout(() => scanPage(), 500);
+      chrome.runtime.sendMessage({ type: 'CLEAR_DOM_FINDINGS' });
+      scanPage();
       return;
     }
 
@@ -206,7 +206,21 @@
     observer.observe(target, { childList: true, subtree: true });
   }
 
+  // Detect extension context invalidation (e.g. extension update/reload)
+  // Detect extension context invalidation (e.g. extension update/reload)
+  const contextCheckInterval = setInterval(() => {
+    if (typeof chrome === 'undefined' || !chrome.runtime?.id) {
+      clearInterval(contextCheckInterval);
+      if (observer) observer.disconnect();
+      clearTimeout(scanTimeout);
+      pendingNodes = [];
+      // Signal MAIN world interceptor to clean up too
+      window.dispatchEvent(new Event('__SECRETS_SPOTTER_CLEANUP__'));
+    }
+  }, 5000);
+
   window.addEventListener('pagehide', () => {
+    clearInterval(contextCheckInterval);
     if (observer) {
       observer.disconnect();
     }

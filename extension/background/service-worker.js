@@ -85,6 +85,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true;
   }
+  if (message.type === 'CLEAR_DOM_FINDINGS') {
+    const tabId = sender.tab?.id;
+    if (tabId != null) {
+      withTabLock(tabId, async () => {
+        const tabData = await getTabData(tabId);
+        tabData.findings = tabData.findings.filter(f => f.source && f.source !== 'dom' && f.source !== 'dom:structured');
+        await setTabData(tabId, tabData);
+        updateBadge(tabId, tabData.findings.length);
+      }).then(() => sendResponse({}));
+    } else {
+      sendResponse({});
+    }
+    return true;
+  }
   if (message.type === 'SCAN_TEXT') {
     const tabId = sender.tab?.id;
     initWasm().then(async () => {
