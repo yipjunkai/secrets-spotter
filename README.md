@@ -8,7 +8,6 @@ A Chrome extension that scans web pages and network traffic for exposed secrets 
 - **37 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, and more
 - **False-positive filtering** using Shannon entropy, placeholder detection, and context analysis
 - **Visual highlighting** of detected secrets directly on the page
-- **Severity levels** — Critical, High, Medium, Low — with color-coded results
 - **SPA-aware** — re-scans on pushState, replaceState, popstate, and hashchange navigations
 - **Fully local** — no data leaves your browser
 
@@ -16,12 +15,12 @@ A Chrome extension that scans web pages and network traffic for exposed secrets 
 
 ```text
 Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
-           → content.js extracts DOM text + structured attributes
-           → Background service worker runs WASM scanner
-           → Rust matches against 37 regex patterns
-           → False positives filtered (entropy, placeholders, English words)
-           → Findings highlighted on page + shown in popup
-           → SPA navigations trigger re-scan automatically
+            → content.js extracts DOM text + structured attributes
+            → Background service worker runs WASM scanner
+            → Rust matches against 37 regex patterns
+            → False positives filtered (entropy, placeholders, English words)
+            → Findings highlighted on page + shown in popup
+            → SPA navigations trigger re-scan automatically
 ```
 
 ## Project Structure
@@ -52,11 +51,6 @@ secrets-spotter/
 │   │   └── popup.css
 │   ├── icons/
 │   └── wasm/                # Compiled WASM output (built artifacts)
-├── .github/workflows/
-│   ├── verify.yml           # CI: secret scanning, lint, WASM build
-│   └── release.yml          # Builds + packages extension ZIP on version tags
-└── scripts/
-    └── build.sh             # Builds Rust → WASM via wasm-pack
 ```
 
 ## Detection Strategy
@@ -121,7 +115,9 @@ Broad keyword match (`key`, `token`, `secret`, `password`, etc.) with Shannon en
 - **English word filtering** — ignores lowercase hyphenated words like `my-setting`
 - **URL / path exclusion** — ignores values that look like URLs or file paths
 
-## Build
+## Development
+
+### Build
 
 Requires [Rust](https://rustup.rs/) and [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/).
 
@@ -131,20 +127,16 @@ Requires [Rust](https://rustup.rs/) and [wasm-pack](https://rustwasm.github.io/w
 
 This compiles the Rust core to WASM and outputs it to `extension/wasm/`.
 
-## Install
+### Install
 
 1. Run the build script
 2. Open `chrome://extensions/`
 3. Enable **Developer mode**
 4. Click **Load unpacked** → select the `extension/` folder
 
-## Usage
+### Usage
 
 Browse any website. The extension icon badge shows the count of secrets found. Click the icon to view findings grouped by severity, with redacted previews and copy-to-clipboard for full values. Detected secrets are also highlighted directly on the page with color-coded borders.
-
-## Release
-
-Tagged versions (`v*`) trigger the [release workflow](.github/workflows/release.yml), which builds the WASM core and publishes a packaged extension ZIP as a GitHub release artifact.
 
 ## License
 
