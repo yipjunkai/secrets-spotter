@@ -12,7 +12,7 @@ pub struct SecretPattern {
 
 lazy_static! {
     pub static ref PATTERNS: Vec<SecretPattern> = vec![
-        // ── Known-prefix patterns (23) ──────────────────────────────────
+        // ── Known-prefix patterns (28) ──────────────────────────────────
         // Match by a fixed prefix or structure baked into the key itself.
 
         // AWS Access Key ID
@@ -20,6 +20,13 @@ lazy_static! {
             regex: Regex::new(r"AKIA[0-9A-Z]{16}").unwrap(),
             kind: SecretKind::AwsAccessKey,
             label: "AWS Access Key ID",
+            severity: Severity::Critical,
+        },
+        // AWS Temporary Access Key (STS)
+        SecretPattern {
+            regex: Regex::new(r"ASIA[0-9A-Z]{16}").unwrap(),
+            kind: SecretKind::AwsTempAccessKey,
+            label: "AWS Temporary Access Key (STS)",
             severity: Severity::Critical,
         },
         // GitHub Personal Access Token
@@ -35,6 +42,13 @@ lazy_static! {
             kind: SecretKind::GitHubOAuthToken,
             label: "GitHub OAuth Token",
             severity: Severity::High,
+        },
+        // GitHub App Tokens (user-to-server, installation, refresh)
+        SecretPattern {
+            regex: Regex::new(r"gh[usr]_[A-Za-z0-9]{36}").unwrap(),
+            kind: SecretKind::GitHubAppToken,
+            label: "GitHub App Token",
+            severity: Severity::Critical,
         },
         // Private Key (PEM)
         SecretPattern {
@@ -70,6 +84,13 @@ lazy_static! {
             label: "Slack Token",
             severity: Severity::Critical,
         },
+        // Slack App-Level Token
+        SecretPattern {
+            regex: Regex::new(r"xapp-[0-9]-[A-Za-z0-9]{10,}-[0-9]{10,}-[A-Za-z0-9]{10,}").unwrap(),
+            kind: SecretKind::SlackAppToken,
+            label: "Slack App-Level Token",
+            severity: Severity::Critical,
+        },
         // Google API Key
         SecretPattern {
             regex: Regex::new(r"AIza[0-9A-Za-z_-]{35}").unwrap(),
@@ -82,6 +103,13 @@ lazy_static! {
             regex: Regex::new(r"sk_(?:live|test)_[A-Za-z0-9]{24,}").unwrap(),
             kind: SecretKind::StripeKey,
             label: "Stripe Secret Key",
+            severity: Severity::Critical,
+        },
+        // Stripe Restricted Key
+        SecretPattern {
+            regex: Regex::new(r"rk_(?:live|test)_[A-Za-z0-9]{24,}").unwrap(),
+            kind: SecretKind::StripeRestrictedKey,
+            label: "Stripe Restricted Key",
             severity: Severity::Critical,
         },
         // Twilio API Key
@@ -128,9 +156,9 @@ lazy_static! {
         },
         // Shopify Access Token
         SecretPattern {
-            regex: Regex::new(r"shpat_[0-9a-fA-F]{32}").unwrap(),
+            regex: Regex::new(r"shp(?:at|ss|ca|pa)_[0-9a-fA-F]{32}").unwrap(),
             kind: SecretKind::ShopifyToken,
-            label: "Shopify Access Token",
+            label: "Shopify Token",
             severity: Severity::Critical,
         },
         // Square Access Token
