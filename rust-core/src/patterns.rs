@@ -12,20 +12,14 @@ pub struct SecretPattern {
 
 lazy_static! {
     pub static ref PATTERNS: Vec<SecretPattern> = vec![
+        // ── Known-prefix patterns (22) ──────────────────────────────────
+        // Match by a fixed prefix or structure baked into the key itself.
+
         // AWS Access Key ID
         SecretPattern {
             regex: Regex::new(r"AKIA[0-9A-Z]{16}").unwrap(),
             kind: SecretKind::AwsAccessKey,
             label: "AWS Access Key ID",
-            severity: Severity::Critical,
-        },
-        // AWS Secret Access Key
-        SecretPattern {
-            regex: Regex::new(
-                r"(?i)(?:aws_secret_access_key|aws_secret|secret_key)\s*[:=]\s*['\x22]?([A-Za-z0-9/+=]{40})['\x22]?"
-            ).unwrap(),
-            kind: SecretKind::AwsSecretKey,
-            label: "AWS Secret Access Key",
             severity: Severity::Critical,
         },
         // GitHub Personal Access Token
@@ -42,15 +36,6 @@ lazy_static! {
             label: "GitHub OAuth Token",
             severity: Severity::High,
         },
-        // Generic API Key
-        SecretPattern {
-            regex: Regex::new(
-                r"(?i)(?:api[_\-]?key|apikey|api[_\-]?secret)\s*[:=]\s*['\x22]?([A-Za-z0-9_\-]{20,64})['\x22]?"
-            ).unwrap(),
-            kind: SecretKind::GenericApiKey,
-            label: "Generic API Key",
-            severity: Severity::Medium,
-        },
         // Private Key (PEM)
         SecretPattern {
             regex: Regex::new(
@@ -60,10 +45,7 @@ lazy_static! {
             label: "Private Key (PEM)",
             severity: Severity::Critical,
         },
-        // Password in URL — user and pass are simple tokens, host starts with a letter
-        // User: alphanumeric/dots/hyphens/underscores only (no ? / = &)
-        // Pass: same plus some special chars, no semicolons or quotes
-        // Host: must start with a letter (not digits like @300)
+        // Password in URL
         SecretPattern {
             regex: Regex::new(
                 r#"(?i)(?:https?|ftp|ssh|mysql|postgresql)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{3,})@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}"#
@@ -95,15 +77,6 @@ lazy_static! {
             label: "Google API Key",
             severity: Severity::High,
         },
-        // Heroku API Key
-        SecretPattern {
-            regex: Regex::new(
-                r"(?i)(?:heroku[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})['\x22]?"
-            ).unwrap(),
-            kind: SecretKind::HerokuApiKey,
-            label: "Heroku API Key",
-            severity: Severity::High,
-        },
         // Stripe Secret Key
         SecretPattern {
             regex: Regex::new(r"sk_(?:live|test)_[A-Za-z0-9]{24,}").unwrap(),
@@ -124,24 +97,6 @@ lazy_static! {
             kind: SecretKind::SendGridKey,
             label: "SendGrid API Key",
             severity: Severity::Critical,
-        },
-        // Bearer Token in Authorization header
-        SecretPattern {
-            regex: Regex::new(
-                r#"(?i)(?:authorization|auth)\s*[:=]\s*['\x22]?Bearer\s+([A-Za-z0-9_\-\.]{20,})['\x22]?"#
-            ).unwrap(),
-            kind: SecretKind::BearerToken,
-            label: "Bearer Token",
-            severity: Severity::Critical,
-        },
-        // Generic Token assignment
-        SecretPattern {
-            regex: Regex::new(
-                r#"(?i)(?:api[_\-]?token|auth[_\-]?token|access[_\-]?token|client[_\-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9_\-\.]{20,})['\x22]"#
-            ).unwrap(),
-            kind: SecretKind::GenericToken,
-            label: "Generic API Token",
-            severity: Severity::High,
         },
         // Discord Bot Token
         SecretPattern {
@@ -170,24 +125,6 @@ lazy_static! {
             kind: SecretKind::PyPiToken,
             label: "PyPI API Token",
             severity: Severity::Critical,
-        },
-        // Azure Subscription Key
-        SecretPattern {
-            regex: Regex::new(
-                r"(?i)(?:subscription[_\-]?key|ocp-apim-subscription-key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
-            ).unwrap(),
-            kind: SecretKind::AzureSubscriptionKey,
-            label: "Azure Subscription Key",
-            severity: Severity::High,
-        },
-        // Datadog API Key
-        SecretPattern {
-            regex: Regex::new(
-                r"(?i)(?:dd[_\-]?api[_\-]?key|datadog[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
-            ).unwrap(),
-            kind: SecretKind::DatadogApiKey,
-            label: "Datadog API Key",
-            severity: Severity::High,
         },
         // Shopify Access Token
         SecretPattern {
@@ -238,8 +175,82 @@ lazy_static! {
             label: "PostHog API Key",
             severity: Severity::High,
         },
+
+        // ── Keyword patterns: service-specific (4) ──────────────────────
+        // Match by a service name in the variable/key name.
+
+        // AWS Secret Access Key
+        SecretPattern {
+            regex: Regex::new(
+                r"(?i)(?:aws_secret_access_key|aws_secret|secret_key)\s*[:=]\s*['\x22]?([A-Za-z0-9/+=]{40})['\x22]?"
+            ).unwrap(),
+            kind: SecretKind::AwsSecretKey,
+            label: "AWS Secret Access Key",
+            severity: Severity::Critical,
+        },
+        // Heroku API Key
+        SecretPattern {
+            regex: Regex::new(
+                r"(?i)(?:heroku[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})['\x22]?"
+            ).unwrap(),
+            kind: SecretKind::HerokuApiKey,
+            label: "Heroku API Key",
+            severity: Severity::High,
+        },
+        // Azure Subscription Key
+        SecretPattern {
+            regex: Regex::new(
+                r"(?i)(?:subscription[_\-]?key|ocp-apim-subscription-key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
+            ).unwrap(),
+            kind: SecretKind::AzureSubscriptionKey,
+            label: "Azure Subscription Key",
+            severity: Severity::High,
+        },
+        // Datadog API Key
+        SecretPattern {
+            regex: Regex::new(
+                r"(?i)(?:dd[_\-]?api[_\-]?key|datadog[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
+            ).unwrap(),
+            kind: SecretKind::DatadogApiKey,
+            label: "Datadog API Key",
+            severity: Severity::High,
+        },
+
+        // ── Keyword patterns: generic dev words (3) ─────────────────────
+        // Match by common developer variable names (api_key, token, etc.).
+
+        // Generic API Key
+        SecretPattern {
+            regex: Regex::new(
+                r"(?i)(?:api[_\-]?key|apikey|api[_\-]?secret)\s*[:=]\s*['\x22]?([A-Za-z0-9_\-]{20,64})['\x22]?"
+            ).unwrap(),
+            kind: SecretKind::GenericApiKey,
+            label: "Generic API Key",
+            severity: Severity::Medium,
+        },
+        // Bearer Token in Authorization header
+        SecretPattern {
+            regex: Regex::new(
+                r#"(?i)(?:authorization|auth)\s*[:=]\s*['\x22]?Bearer\s+([A-Za-z0-9_\-\.]{20,})['\x22]?"#
+            ).unwrap(),
+            kind: SecretKind::BearerToken,
+            label: "Bearer Token",
+            severity: Severity::Critical,
+        },
+        // Generic Token assignment
+        SecretPattern {
+            regex: Regex::new(
+                r#"(?i)(?:api[_\-]?token|auth[_\-]?token|access[_\-]?token|client[_\-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9_\-\.]{20,})['\x22]"#
+            ).unwrap(),
+            kind: SecretKind::GenericToken,
+            label: "Generic API Token",
+            severity: Severity::High,
+        },
+
+        // ── Entropy-based fallback (2) ──────────────────────────────────
+        // Broad keyword match + Shannon entropy check (done in detector.rs).
+
         // High-entropy catch-all: key/token/secret assignment with a long alphanumeric value
-        // Entropy check is done in the detector, not here — regex just finds candidates
         SecretPattern {
             regex: Regex::new(
                 r#"(?i)(?:key|token|secret|credential|auth|password|apikey|api_key|api[_-]?secret|private[_-]?key|access[_-]?key|client[_-]?secret|signing[_-]?key|encryption[_-]?key|session[_-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9+/=_\-]{32,256})['\x22]"#

@@ -57,9 +57,54 @@ secrets-spotter/
     └── build.sh             # Builds Rust → WASM via wasm-pack
 ```
 
-## Detected Secret Types
+## Detection Strategy
 
-AWS keys, GitHub PATs/OAuth tokens, Google API keys, Stripe keys, Slack tokens, Discord tokens, JWTs, Bearer tokens, SendGrid/Mailgun/Twilio keys, npm/PyPI tokens, Anthropic/OpenAI keys, DigitalOcean, Azure, Datadog, Shopify, Square, Linear, PostHog, Heroku, private PEM keys, passwords in URLs, and high-entropy generic secrets.
+Secrets Spotter uses a three-tier detection strategy (31 patterns total):
+
+### Known-prefix patterns (22)
+
+Match by a fixed prefix or structure baked into the key itself — highest confidence.
+
+| Service           | Prefix/Structure                |
+| ----------------- | ------------------------------- |
+| AWS Access Key ID | `AKIA...`                       |
+| GitHub PAT        | `ghp_` / `github_pat_`          |
+| GitHub OAuth      | `gho_`                          |
+| Private Key (PEM) | `-----BEGIN...PRIVATE KEY-----` |
+| Password in URL   | `protocol://user:pass@host`     |
+| JWT               | `eyJ...eyJ...`                  |
+| Slack             | `xox[bpors]-`                   |
+| Google API Key    | `AIza`                          |
+| Stripe            | `sk_(live\|test)_`              |
+| Twilio            | `SK` + 32 hex chars             |
+| SendGrid          | `SG.`                           |
+| Discord Bot       | `[MN]...(dot-separated)`        |
+| Mailgun           | `key-`                          |
+| npm               | `npm_`                          |
+| PyPI              | `pypi-`                         |
+| Shopify           | `shpat_`                        |
+| Square            | `sq0atp-`                       |
+| Anthropic         | `sk-ant-api03-`                 |
+| OpenAI            | `sk-...T3BlbkFJ...`             |
+| DigitalOcean      | `dop_v1_`                       |
+| Linear            | `lin_api_`                      |
+| PostHog           | `ph[cx]_`                       |
+
+### Keyword patterns: service-specific (4)
+
+Match by a service name in the variable name (e.g. `heroku_api_key=...`).
+
+AWS Secret Key, Heroku, Azure Subscription Key, Datadog.
+
+### Keyword patterns: generic dev words (3)
+
+Match by common developer variable names (e.g. `api_key=...`, `authorization: Bearer ...`).
+
+Generic API Key, Bearer Token, Generic API Token.
+
+### Entropy-based fallback (2)
+
+Broad keyword match (`key`, `token`, `secret`, `password`, etc.) with Shannon entropy validation (min 3.5 bits/char) to catch secrets that don't match any known prefix or service keyword.
 
 ## Build
 
