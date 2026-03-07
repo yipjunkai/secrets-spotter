@@ -78,7 +78,7 @@ jobs:
         id: cargo_version
         shell: bash
         run: |
-          VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d '"' -f 2)
+          VERSION=$(grep '^version' rust-core/Cargo.toml | head -1 | cut -d '"' -f 2)
           echo "version=v$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
