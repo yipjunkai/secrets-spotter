@@ -44,7 +44,7 @@ function tabKey(tabId) {
 async function getTabData(tabId) {
   const key = tabKey(tabId);
   const result = await chrome.storage.session.get(key);
-  return result[key] || { findings: [], scannedUrls: [], url: '' };
+  return result[key] || { findings: [], scannedUrls: [], url: '', scanned: 0, skipped: 0, sources: {} };
 }
 
 async function setTabData(tabId, data) {
@@ -55,12 +55,29 @@ async function removeTabData(tabId) {
   await chrome.storage.session.remove(tabKey(tabId));
 }
 
+function normalizeSource(source) {
+  if (!source) return 'unknown';
+  if (source === 'dom' || source === 'dom:structured') return 'dom';
+  if (source === 'cookie') return 'cookie';
+  // network:fetch, network:xhr, network:websocket, network:sse, etc.
+  const match = source.match(/^network:(?:request:|header:)?(.+)$/);
+  return match ? match[1] : source;
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SCAN_TEXT') {
     const tabId = sender.tab?.id;
     initWasm().then(async () => {
+      const source = normalizeSource(message.source);
+
       // Filter URLs that shouldn't be scanned
-      if (message.url && !should_scan(message.url, '')) {
+      const contentType = message.contentType || '';
+      if (message.url && !should_scan(message.url, contentType)) {
+        if (tabId != null) {
+          const tabData = await getTabData(tabId);
+          tabData.skipped = (tabData.skipped || 0) + 1;
+          await setTabData(tabId, tabData);
+        }
         sendResponse({ findings: [] });
         return;
       }
@@ -98,6 +115,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           tabData.scannedUrls.push(message.url);
         }
 
+        tabData.scanned = (tabData.scanned || 0) + 1;
+        tabData.sources = tabData.sources || {};
+        tabData.sources[source] = (tabData.sources[source] || 0) + 1;
+
         await setTabData(tabId, tabData);
         updateBadge(tabId, tabData.findings.length);
       }
@@ -116,7 +137,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({
         findings: tabData.findings,
         url: tabData.url,
-        scannedCount: tabData.scannedUrls.length,
+        scannedCount: tabData.scanned || 0,
+        skippedCount: tabData.skipped || 0,
+        sources: tabData.sources || {},
       });
     }).catch((err) => {
       console.warn('Secrets Spotter: get findings failed:', err.message);

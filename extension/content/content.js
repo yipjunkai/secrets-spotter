@@ -29,7 +29,7 @@
     }
   }
 
-  async function sendForScan(text, url, source) {
+  async function sendForScan(text, url, source, contentType) {
     if (!text || text.length < 10) return;
     if (!isContextValid()) return;
 
@@ -39,7 +39,7 @@
 
     try {
       chrome.runtime.sendMessage(
-        { type: 'SCAN_TEXT', text, url, source },
+        { type: 'SCAN_TEXT', text, url, source, contentType: contentType || '' },
         (response) => {
           if (chrome.runtime.lastError) {
             // Extension was reloaded/updated — stop scanning
@@ -111,8 +111,8 @@
 
     if (event.data?.type !== '__SECRETS_SPOTTER_INTERCEPT__') return;
 
-    const { url, text, source } = event.data;
-    sendForScan(text, url, `network:${source}`);
+    const { url, text, source, contentType } = event.data;
+    sendForScan(text, url, `network:${source}`, contentType);
   });
 
   function highlightFindings(findings) {

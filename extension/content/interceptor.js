@@ -19,11 +19,12 @@
   function shouldScan(url, contentType) {
     if (SKIP_EXTENSIONS.test(url)) return false;
     if (SKIP_PATHS.test(url)) return false;
+    if (SKIP_CDN_HOSTS.test(url)) return false;
     if (contentType && SKIP_CONTENT_TYPES.test(contentType)) return false;
     return true;
   }
 
-  function postIntercepted(url, body, source) {
+  function postIntercepted(url, body, source, contentType) {
     if (!body || typeof body !== 'string' || body.length < 10) return;
     const text = body.length > MAX_SIZE ? body.slice(0, MAX_SIZE) : body;
     window.postMessage({
@@ -31,6 +32,7 @@
       url,
       text,
       source,
+      contentType: contentType || '',
     }, '*');
   }
 
@@ -80,14 +82,14 @@
             headerLines.push(`${name}: ${value}`);
           }
           if (headerLines.length > 0) {
-            postIntercepted(url, headerLines.join('\n'), 'header:fetch');
+            postIntercepted(url, headerLines.join('\n'), 'header:fetch', contentType);
           }
         } catch {}
 
         // Scan response body
         const clone = response.clone();
         clone.text().then((body) => {
-          postIntercepted(url, body, 'fetch');
+          postIntercepted(url, body, 'fetch', contentType);
         }).catch(() => {});
       }
     } catch {
@@ -124,14 +126,14 @@
 
         // Scan response body
         if (typeof this.responseText === 'string') {
-          postIntercepted(url, this.responseText, 'xhr');
+          postIntercepted(url, this.responseText, 'xhr', contentType);
         }
 
         // Scan response headers
         try {
           const rawHeaders = this.getAllResponseHeaders();
           if (rawHeaders) {
-            postIntercepted(url, rawHeaders, 'header:xhr');
+            postIntercepted(url, rawHeaders, 'header:xhr', contentType);
           }
         } catch {}
       } catch {
@@ -283,7 +285,6 @@
       const src = script.src;
       if (!src || seen.has(src)) continue;
       seen.add(src);
-      if (SKIP_CDN_HOSTS.test(src)) continue;
       if (!shouldScan(src, '')) continue;
 
       // Use originalFetch to avoid triggering our own fetch() interceptor
@@ -309,7 +310,6 @@
       const href = link.href;
       if (!href || seen.has(href)) continue;
       seen.add(href);
-      if (SKIP_CDN_HOSTS.test(href)) continue;
       if (!shouldScan(href, '')) continue;
 
       // Use originalFetch to avoid triggering our own fetch() interceptor
