@@ -62,7 +62,7 @@ impl SecretDetector {
 
     fn extract_value(matched: &str) -> &str {
         matched
-            .rsplit(|c| c == '=' || c == ':')
+            .rsplit(['=', ':'])
             .next()
             .unwrap_or(matched)
             .trim()
@@ -154,5 +154,25 @@ impl SecretDetector {
                 i += 1;
             }
         }
+    }
+
+    /// Merge existing findings with new ones, deduplicating by label + full_match.
+    pub fn merge_findings(
+        existing: Vec<SecretFinding>,
+        new: Vec<SecretFinding>,
+    ) -> Vec<SecretFinding> {
+        use std::collections::HashSet;
+
+        let mut seen = HashSet::new();
+        let mut merged = Vec::with_capacity(existing.len() + new.len());
+
+        for f in existing.into_iter().chain(new.into_iter()) {
+            let key = format!("{}:{}", f.label, f.full_match);
+            if seen.insert(key) {
+                merged.push(f);
+            }
+        }
+
+        merged
     }
 }
