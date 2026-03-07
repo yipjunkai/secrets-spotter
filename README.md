@@ -110,8 +110,8 @@ Broad keyword match (`key`, `token`, `secret`, `password`, etc.) with Shannon en
 ### False-positive filtering
 
 - **Placeholder detection** — skips `YOUR_KEY`, `example`, `test`, `TODO`, etc.
-- **Shannon entropy** — rejects low-entropy values for entropy-gated patterns
-- **Character class diversity** — requires mix of uppercase, lowercase, or digits
+- **Shannon entropy** — rejects low-entropy values for entropy-gated patterns (UTF-8-aware, counts chars not bytes)
+- **Character class diversity** — requires mix of uppercase, lowercase, digits, or symbols/non-ASCII
 - **English word filtering** — ignores lowercase hyphenated words like `my-setting`
 - **URL / path exclusion** — ignores values that look like URLs or file paths
 
