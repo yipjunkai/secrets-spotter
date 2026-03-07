@@ -100,6 +100,15 @@
   // Listen for intercepted network responses from the MAIN world script
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
+
+    if (event.data?.type === '__SECRETS_SPOTTER_NAVIGATION__') {
+      // SPA navigation — clear cache and re-scan after new content renders
+      scannedHashes.clear();
+      allFindings = [];
+      setTimeout(() => scanPage(), 500);
+      return;
+    }
+
     if (event.data?.type !== '__SECRETS_SPOTTER_INTERCEPT__') return;
 
     const { url, text, source } = event.data;

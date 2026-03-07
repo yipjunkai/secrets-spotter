@@ -348,4 +348,39 @@
     }, { once: true });
   }
 
+  // =========================================================================
+  // 7. SPA navigation detection — pushState, replaceState, popstate, hashchange
+  // =========================================================================
+  let lastUrl = window.location.href;
+
+  function onNavigation() {
+    const currentUrl = window.location.href;
+    if (currentUrl === lastUrl) return;
+    lastUrl = currentUrl;
+
+    window.postMessage({
+      type: '__SECRETS_SPOTTER_NAVIGATION__',
+      url: currentUrl,
+    }, '*');
+
+    scanCookies();
+  }
+
+  const originalPushState = history.pushState;
+  history.pushState = function (...args) {
+    const result = originalPushState.apply(this, args);
+    onNavigation();
+    return result;
+  };
+
+  const originalReplaceState = history.replaceState;
+  history.replaceState = function (...args) {
+    const result = originalReplaceState.apply(this, args);
+    onNavigation();
+    return result;
+  };
+
+  window.addEventListener('popstate', () => onNavigation());
+  window.addEventListener('hashchange', () => onNavigation());
+
 })();
