@@ -112,7 +112,8 @@ impl SecretDetector {
                 let has_lower = value.chars().any(|c| c.is_ascii_lowercase());
                 let has_digit = value.chars().any(|c| c.is_ascii_digit());
                 let has_other = value.chars().any(|c| !c.is_ascii_alphanumeric());
-                let char_classes = has_upper as u8 + has_lower as u8 + has_digit as u8 + has_other as u8;
+                let char_classes =
+                    has_upper as u8 + has_lower as u8 + has_digit as u8 + has_other as u8;
                 if char_classes < 2 {
                     return true;
                 }
@@ -171,23 +172,28 @@ impl SecretDetector {
         }
     }
 
-    /// Merge existing findings with new ones, deduplicating by label + full_match.
+    /// Merge existing findings with new ones, deduplicating by full_match value.
+    /// When the same value is found by multiple patterns, keeps the highest severity.
+    /// Note: full_match includes the variable/key name (e.g. `apiKey:"sk-..."`), so the
+    /// same secret assigned to different variable names appears as separate findings —
+    /// this is intentional to give visibility into every location the secret is exposed.
     pub fn merge_findings(
         existing: Vec<SecretFinding>,
         new: Vec<SecretFinding>,
     ) -> Vec<SecretFinding> {
-        use std::collections::HashSet;
+        use std::collections::HashMap;
 
-        let mut seen = HashSet::new();
-        let mut merged = Vec::with_capacity(existing.len() + new.len());
+        let mut best: HashMap<String, SecretFinding> = HashMap::new();
 
         for f in existing.into_iter().chain(new.into_iter()) {
-            let key = format!("{}:{}:{}", f.label, f.full_match, f.start);
-            if seen.insert(key) {
-                merged.push(f);
+            match best.get(&f.full_match) {
+                Some(prev) if prev.severity <= f.severity => {}
+                _ => {
+                    best.insert(f.full_match.clone(), f);
+                }
             }
         }
 
-        merged
+        best.into_values().collect()
     }
 }
