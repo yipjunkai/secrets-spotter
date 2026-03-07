@@ -59,9 +59,9 @@ secrets-spotter/
 
 ## Detection Strategy
 
-Secrets Spotter uses a three-tier detection strategy (31 patterns total):
+Secrets Spotter uses a three-tier detection strategy (32 patterns total):
 
-### Known-prefix patterns (22)
+### Known-prefix patterns (23)
 
 Match by a fixed prefix or structure baked into the key itself — highest confidence.
 
@@ -85,7 +85,8 @@ Match by a fixed prefix or structure baked into the key itself — highest confi
 | Shopify           | `shpat_`                        |
 | Square            | `sq0atp-`                       |
 | Anthropic         | `sk-ant-api03-`                 |
-| OpenAI            | `sk-...T3BlbkFJ...`             |
+| OpenAI (legacy)   | `sk-...T3BlbkFJ...`             |
+| OpenAI (new)      | `sk-proj-` / `sk-svcacct-`      |
 | DigitalOcean      | `dop_v1_`                       |
 | Linear            | `lin_api_`                      |
 | PostHog           | `ph[cx]_`                       |

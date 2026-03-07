@@ -12,7 +12,7 @@ pub struct SecretPattern {
 
 lazy_static! {
     pub static ref PATTERNS: Vec<SecretPattern> = vec![
-        // ── Known-prefix patterns (22) ──────────────────────────────────
+        // ── Known-prefix patterns (23) ──────────────────────────────────
         // Match by a fixed prefix or structure baked into the key itself.
 
         // AWS Access Key ID
@@ -48,7 +48,7 @@ lazy_static! {
         // Password in URL
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:https?|ftp|ssh|mysql|postgresql)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{3,})@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}"#
+                r#"(?i)(?:https?|ftp|ssh|mysql|postgresql)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{8,})@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}"#
             ).unwrap(),
             kind: SecretKind::PasswordInUrl,
             label: "Password in URL",
@@ -147,9 +147,16 @@ lazy_static! {
             label: "Anthropic API Key",
             severity: Severity::Critical,
         },
-        // OpenAI API Key
+        // OpenAI API Key (legacy format)
         SecretPattern {
             regex: Regex::new(r"sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}").unwrap(),
+            kind: SecretKind::OpenAiApiKey,
+            label: "OpenAI API Key",
+            severity: Severity::Critical,
+        },
+        // OpenAI API Key (new project/service account format)
+        SecretPattern {
+            regex: Regex::new(r"sk-(?:proj|svcacct)-[A-Za-z0-9_-]{20,}").unwrap(),
             kind: SecretKind::OpenAiApiKey,
             label: "OpenAI API Key",
             severity: Severity::Critical,
