@@ -114,6 +114,7 @@
     if (event.data?.type !== '__SECRETS_SPOTTER_INTERCEPT__') return;
 
     const { url, text, source, contentType } = event.data;
+    if (typeof text !== 'string') return;
     sendForScan(text, url, `network:${source}`, contentType);
   });
 

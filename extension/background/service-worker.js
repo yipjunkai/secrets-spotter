@@ -58,7 +58,7 @@ const tabLocks = new Map();
 
 async function withTabLock(tabId, fn) {
   const prev = tabLocks.get(tabId) || Promise.resolve();
-  const next = prev.then(fn, fn);
+  const next = prev.catch(() => {}).then(fn);
   tabLocks.set(tabId, next);
   return next;
 }
