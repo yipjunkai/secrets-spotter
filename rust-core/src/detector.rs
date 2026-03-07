@@ -107,11 +107,12 @@ impl SecretDetector {
                 if Self::shannon_entropy(value) < 3.5 {
                     return true;
                 }
-                // Must contain at least 2 of: uppercase, lowercase, digits
+                // Must contain at least 2 of: uppercase, lowercase, digits, symbols/non-ASCII
                 let has_upper = value.chars().any(|c| c.is_ascii_uppercase());
                 let has_lower = value.chars().any(|c| c.is_ascii_lowercase());
                 let has_digit = value.chars().any(|c| c.is_ascii_digit());
-                let char_classes = has_upper as u8 + has_lower as u8 + has_digit as u8;
+                let has_other = value.chars().any(|c| !c.is_ascii_alphanumeric());
+                let char_classes = has_upper as u8 + has_lower as u8 + has_digit as u8 + has_other as u8;
                 if char_classes < 2 {
                     return true;
                 }
@@ -126,17 +127,18 @@ impl SecretDetector {
         if s.is_empty() {
             return 0.0;
         }
-        let len = s.len() as f64;
-        let mut freq = [0u32; 256];
-        for &b in s.as_bytes() {
-            freq[b as usize] += 1;
+        use std::collections::HashMap;
+        let mut freq: HashMap<char, u32> = HashMap::new();
+        let mut char_count = 0u32;
+        for c in s.chars() {
+            *freq.entry(c).or_insert(0) += 1;
+            char_count += 1;
         }
+        let len = char_count as f64;
         let mut entropy = 0.0f64;
-        for &count in &freq {
-            if count > 0 {
-                let p = count as f64 / len;
-                entropy -= p * p.log2();
-            }
+        for &count in freq.values() {
+            let p = count as f64 / len;
+            entropy -= p * p.log2();
         }
         entropy
     }
