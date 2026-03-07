@@ -153,10 +153,10 @@
 
         try {
           range.surroundContents(highlight);
+          break;
         } catch {
           // Skip if range crosses element boundaries
         }
-        break;
       }
     }
   }

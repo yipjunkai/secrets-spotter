@@ -122,7 +122,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           tabData.findings = merge_findings(tabData.findings, newFindings);
 
           // scannedUrls stored as array since Set isn't JSON-serializable
-          if (!tabData.scannedUrls.includes(message.url)) {
+          if (message.url && !tabData.scannedUrls.includes(message.url)) {
             tabData.scannedUrls.push(message.url);
           }
 
@@ -171,4 +171,5 @@ chrome.webNavigation?.onCommitted?.addListener((details) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   removeTabData(tabId);
+  tabLocks.delete(tabId);
 });
