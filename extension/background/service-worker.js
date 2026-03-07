@@ -8,16 +8,26 @@ import init, {
 } from '../wasm/secrets_spotter_core.js';
 
 let wasmReady = false;
+let wasmInitPromise = null;
 
 // Allow content scripts to access session storage
 chrome.storage.session.setAccessLevel?.({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' });
 
 async function initWasm() {
   if (wasmReady) return;
-  const wasmUrl = chrome.runtime.getURL('wasm/secrets_spotter_core_bg.wasm');
-  await init(wasmUrl);
-  wasmReady = true;
-  console.log(`Secrets Spotter WASM loaded. ${pattern_count()} patterns active.`);
+  if (wasmInitPromise) return wasmInitPromise;
+  wasmInitPromise = (async () => {
+    try {
+      const wasmUrl = chrome.runtime.getURL('wasm/secrets_spotter_core_bg.wasm');
+      await init(wasmUrl);
+      wasmReady = true;
+      console.log(`Secrets Spotter WASM loaded. ${pattern_count()} patterns active.`);
+    } catch (err) {
+      wasmInitPromise = null;
+      throw err;
+    }
+  })();
+  return wasmInitPromise;
 }
 
 function updateBadge(tabId, count) {
@@ -93,6 +103,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       sendResponse({ findings: newFindings });
+    }).catch((err) => {
+      console.warn('Secrets Spotter: scan failed:', err.message);
+      sendResponse({ findings: [] });
     });
     return true;
   }
@@ -105,6 +118,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         url: tabData.url,
         scannedCount: tabData.scannedUrls.length,
       });
+    }).catch((err) => {
+      console.warn('Secrets Spotter: get findings failed:', err.message);
+      sendResponse({ findings: [], url: '', scannedCount: 0 });
     });
     return true;
   }

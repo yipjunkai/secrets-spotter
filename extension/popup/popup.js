@@ -5,6 +5,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.runtime.sendMessage(
     { type: 'GET_FINDINGS', tabId: tab.id },
     (data) => {
+      if (chrome.runtime.lastError) {
+        console.warn('Secrets Spotter:', chrome.runtime.lastError.message);
+        return;
+      }
       const findings = data?.findings || [];
       const summaryEl = document.getElementById('summary');
       const listEl = document.getElementById('findings-list');

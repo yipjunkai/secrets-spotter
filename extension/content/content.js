@@ -6,6 +6,7 @@
   let allFindings = [];
   // Hash-based cache to skip already-scanned text
   const scannedHashes = new Set();
+  let observer = null;
 
   async function hashText(text) {
     const encoded = new TextEncoder().encode(text);
@@ -20,28 +21,45 @@
     return document.documentElement?.outerHTML || '';
   }
 
+  function isContextValid() {
+    try {
+      return !!chrome.runtime?.id;
+    } catch {
+      return false;
+    }
+  }
+
   async function sendForScan(text, url, source) {
     if (!text || text.length < 10) return;
+    if (!isContextValid()) return;
 
     const hash = await hashText(text);
     if (scannedHashes.has(hash)) return;
     scannedHashes.add(hash);
 
-    chrome.runtime.sendMessage(
-      { type: 'SCAN_TEXT', text, url, source },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn('Secrets Spotter:', chrome.runtime.lastError.message);
-          return;
-        }
-        if (response?.findings?.length > 0) {
-          // Only highlight DOM-source findings (network ones aren't in the visible page)
-          if (source === 'dom') {
-            highlightFindings(response.findings);
+    try {
+      chrome.runtime.sendMessage(
+        { type: 'SCAN_TEXT', text, url, source },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            // Extension was reloaded/updated — stop scanning
+            if (chrome.runtime.lastError.message?.includes('context invalidated')) {
+              observer?.disconnect();
+            }
+            return;
+          }
+          if (response?.findings?.length > 0) {
+            // Only highlight DOM-source findings (network ones aren't in the visible page)
+            if (source === 'dom') {
+              highlightFindings(response.findings);
+            }
           }
         }
-      }
-    );
+      );
+    } catch {
+      // Extension context destroyed — disconnect observer
+      observer?.disconnect();
+    }
   }
 
   function extractStructuredSecrets() {
@@ -138,7 +156,7 @@
 
   let pendingNodes = [];
 
-  const observer = new MutationObserver((mutations) => {
+  observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) {
