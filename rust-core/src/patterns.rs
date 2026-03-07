@@ -41,7 +41,7 @@ lazy_static! {
             regex: Regex::new(r"gho_[A-Za-z0-9]{36}").unwrap(),
             kind: SecretKind::GitHubOAuthToken,
             label: "GitHub OAuth Token",
-            severity: Severity::High,
+            severity: Severity::Critical,
         },
         // GitHub App Tokens (user-to-server, installation, refresh)
         SecretPattern {
@@ -96,7 +96,7 @@ lazy_static! {
             regex: Regex::new(r"AIza[0-9A-Za-z_-]{35}").unwrap(),
             kind: SecretKind::GoogleApiKey,
             label: "Google API Key",
-            severity: Severity::High,
+            severity: Severity::Medium,
         },
         // Stripe Secret Key
         SecretPattern {
@@ -110,14 +110,14 @@ lazy_static! {
             regex: Regex::new(r"rk_(?:live|test)_[A-Za-z0-9]{24,}").unwrap(),
             kind: SecretKind::StripeRestrictedKey,
             label: "Stripe Restricted Key",
-            severity: Severity::Critical,
+            severity: Severity::High,
         },
         // Twilio API Key
         SecretPattern {
             regex: Regex::new(r"SK[0-9a-fA-F]{32}").unwrap(),
             kind: SecretKind::TwilioKey,
             label: "Twilio API Key",
-            severity: Severity::High,
+            severity: Severity::Critical,
         },
         // SendGrid API Key
         SecretPattern {
@@ -208,7 +208,7 @@ lazy_static! {
             regex: Regex::new(r"ph[cx]_[A-Za-z0-9]{30,}").unwrap(),
             kind: SecretKind::PostHogApiKey,
             label: "PostHog API Key",
-            severity: Severity::High,
+            severity: Severity::Medium,
         },
 
         // ── Keyword patterns: service-specific (4) ──────────────────────
@@ -270,7 +270,7 @@ lazy_static! {
             ).unwrap(),
             kind: SecretKind::BearerToken,
             label: "Bearer Token",
-            severity: Severity::Critical,
+            severity: Severity::High,
         },
         // Generic Token assignment
         SecretPattern {
