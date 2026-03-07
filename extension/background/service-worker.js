@@ -1,7 +1,16 @@
-import init, { scan_text, pattern_count } from '../wasm/secrets_spotter_core.js';
+import init, {
+  scan_text,
+  pattern_count,
+  should_scan,
+  parse_cookies,
+  format_attributes,
+  merge_findings,
+} from '../wasm/secrets_spotter_core.js';
 
-const tabFindings = new Map();
 let wasmReady = false;
+
+// Allow content scripts to access session storage
+chrome.storage.session.setAccessLevel?.({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' });
 
 async function initWasm() {
   if (wasmReady) return;
@@ -18,31 +27,51 @@ function updateBadge(tabId, count) {
   chrome.action.setBadgeBackgroundColor({ color, tabId });
 }
 
-function getTabData(tabId) {
-  if (!tabFindings.has(tabId)) {
-    tabFindings.set(tabId, { findings: [], scannedUrls: new Set(), url: '' });
-  }
-  return tabFindings.get(tabId);
+function tabKey(tabId) {
+  return `tab:${tabId}`;
 }
 
-function deduplicateFindings(findings) {
-  const seen = new Set();
-  return findings.filter((f) => {
-    const key = `${f.label}:${f.full_match}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+async function getTabData(tabId) {
+  const key = tabKey(tabId);
+  const result = await chrome.storage.session.get(key);
+  return result[key] || { findings: [], scannedUrls: [], url: '' };
+}
+
+async function setTabData(tabId, data) {
+  await chrome.storage.session.set({ [tabKey(tabId)]: data });
+}
+
+async function removeTabData(tabId) {
+  await chrome.storage.session.remove(tabKey(tabId));
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SCAN_TEXT') {
     const tabId = sender.tab?.id;
-    initWasm().then(() => {
-      const newFindings = scan_text(message.text);
+    initWasm().then(async () => {
+      // Filter URLs that shouldn't be scanned
+      if (message.url && !should_scan(message.url, '')) {
+        sendResponse({ findings: [] });
+        return;
+      }
+
+      // Preprocess based on source type
+      let textToScan = message.text;
+      if (message.source === 'cookie') {
+        textToScan = parse_cookies(message.text);
+      } else if (message.source === 'dom:structured') {
+        textToScan = format_attributes(message.text);
+      }
+
+      if (!textToScan || textToScan.length < 10) {
+        sendResponse({ findings: [] });
+        return;
+      }
+
+      const newFindings = scan_text(textToScan);
 
       if (tabId != null) {
-        const tabData = getTabData(tabId);
+        const tabData = await getTabData(tabId);
         tabData.url = tabData.url || message.url;
 
         // Tag each finding with its source
@@ -51,9 +80,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           f.sourceUrl = message.url || '';
         }
 
-        tabData.findings.push(...newFindings);
-        tabData.findings = deduplicateFindings(tabData.findings);
-        tabData.scannedUrls.add(message.url);
+        // Deduplicate via Rust
+        tabData.findings = merge_findings(tabData.findings, newFindings);
+
+        // scannedUrls stored as array since Set isn't JSON-serializable
+        if (!tabData.scannedUrls.includes(message.url)) {
+          tabData.scannedUrls.push(message.url);
+        }
+
+        await setTabData(tabId, tabData);
         updateBadge(tabId, tabData.findings.length);
       }
 
@@ -64,28 +99,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'GET_FINDINGS') {
     const tabId = message.tabId;
-    const tabData = tabFindings.get(tabId);
-    if (tabData) {
+    getTabData(tabId).then((tabData) => {
       sendResponse({
         findings: tabData.findings,
         url: tabData.url,
-        scannedCount: tabData.scannedUrls.size,
+        scannedCount: tabData.scannedUrls.length,
       });
-    } else {
-      sendResponse({ findings: [], url: '', scannedCount: 0 });
-    }
-    return false;
+    });
+    return true;
   }
 });
 
 // Reset findings on navigation
 chrome.webNavigation?.onCommitted?.addListener((details) => {
   if (details.frameId === 0) {
-    tabFindings.delete(details.tabId);
+    removeTabData(details.tabId);
     updateBadge(details.tabId, 0);
   }
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  tabFindings.delete(tabId);
+  removeTabData(tabId);
 });
