@@ -134,12 +134,13 @@ impl SecretDetector {
     }
 
     fn redact(s: &str) -> String {
-        let len = s.len();
-        if len <= 8 {
-            return "*".repeat(len);
+        let chars: Vec<char> = s.chars().collect();
+        if chars.len() <= 8 {
+            return "*".repeat(chars.len());
         }
-        let visible = 4;
-        format!("{}...{}", &s[..visible], &s[len - visible..])
+        let prefix: String = chars[..4].iter().collect();
+        let suffix: String = chars[chars.len() - 4..].iter().collect();
+        format!("{}...{}", prefix, suffix)
     }
 
     fn deduplicate(findings: &mut Vec<SecretFinding>) {
@@ -148,8 +149,12 @@ impl SecretDetector {
         let mut i = 0;
         while i + 1 < findings.len() {
             if findings[i + 1].start < findings[i].end {
-                // Overlapping - remove the later (lower priority) one
-                findings.remove(i + 1);
+                // Overlapping — keep the higher severity (lower ordinal)
+                if findings[i + 1].severity < findings[i].severity {
+                    findings.remove(i);
+                } else {
+                    findings.remove(i + 1);
+                }
             } else {
                 i += 1;
             }

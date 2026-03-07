@@ -2,8 +2,6 @@
   'use strict';
 
   let scanTimeout = null;
-  // Track all findings across DOM + network for highlighting and badge
-  let allFindings = [];
   // Hash-based cache to skip already-scanned text
   const scannedHashes = new Set();
   let observer = null;
@@ -18,7 +16,11 @@
   }
 
   function getPageSource() {
-    return document.documentElement?.outerHTML || '';
+    const clone = document.documentElement.cloneNode(true);
+    clone.querySelectorAll('.secrets-spotter-highlight').forEach((el) => {
+      el.replaceWith(document.createTextNode(el.textContent));
+    });
+    return clone.outerHTML || '';
   }
 
   function isContextValid() {
@@ -104,7 +106,6 @@
     if (event.data?.type === '__SECRETS_SPOTTER_NAVIGATION__') {
       // SPA navigation — clear cache and re-scan after new content renders
       scannedHashes.clear();
-      allFindings = [];
       setTimeout(() => scanPage(), 500);
       return;
     }
@@ -116,15 +117,17 @@
   });
 
   function highlightFindings(findings) {
-    document.querySelectorAll('.secrets-spotter-highlight').forEach((el) => {
-      const text = document.createTextNode(el.textContent);
-      el.replaceWith(text);
-    });
-
     const treeWalker = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT,
-      null
+      {
+        acceptNode(node) {
+          if (node.parentElement?.closest('.secrets-spotter-highlight')) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
     );
 
     const textNodes = [];

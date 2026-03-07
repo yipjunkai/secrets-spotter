@@ -139,7 +139,7 @@
       } catch {
         // Never break the page
       }
-    });
+    }, { once: true });
     return XHRSend.apply(this, args);
   };
 
@@ -197,6 +197,7 @@
     };
 
     window.WebSocket.prototype = OriginalWebSocket.prototype;
+    window.WebSocket.prototype.constructor = window.WebSocket;
     window.WebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
     window.WebSocket.OPEN = OriginalWebSocket.OPEN;
     window.WebSocket.CLOSING = OriginalWebSocket.CLOSING;
@@ -269,6 +270,7 @@
     };
 
     window.EventSource.prototype = OriginalEventSource.prototype;
+    window.EventSource.prototype.constructor = window.EventSource;
     window.EventSource.CONNECTING = OriginalEventSource.CONNECTING;
     window.EventSource.OPEN = OriginalEventSource.OPEN;
     window.EventSource.CLOSED = OriginalEventSource.CLOSED;

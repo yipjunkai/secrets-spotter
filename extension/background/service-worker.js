@@ -55,6 +55,15 @@ async function removeTabData(tabId) {
   await chrome.storage.session.remove(tabKey(tabId));
 }
 
+const tabLocks = new Map();
+
+async function withTabLock(tabId, fn) {
+  const prev = tabLocks.get(tabId) || Promise.resolve();
+  const next = prev.then(fn, fn);
+  tabLocks.set(tabId, next);
+  return next;
+}
+
 function normalizeSource(source) {
   if (!source) return 'unknown';
   if (source === 'dom' || source === 'dom:structured') return 'dom';
@@ -74,9 +83,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const contentType = message.contentType || '';
       if (message.url && !should_scan(message.url, contentType)) {
         if (tabId != null) {
-          const tabData = await getTabData(tabId);
-          tabData.skipped = (tabData.skipped || 0) + 1;
-          await setTabData(tabId, tabData);
+          await withTabLock(tabId, async () => {
+            const tabData = await getTabData(tabId);
+            tabData.skipped = (tabData.skipped || 0) + 1;
+            await setTabData(tabId, tabData);
+          });
         }
         sendResponse({ findings: [] });
         return;
@@ -98,29 +109,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const newFindings = scan_text(textToScan);
 
       if (tabId != null) {
-        const tabData = await getTabData(tabId);
-        tabData.url = tabData.url || message.url;
-
         // Tag each finding with its source
         for (const f of newFindings) {
           f.source = message.source || 'unknown';
           f.sourceUrl = message.url || '';
         }
 
-        // Deduplicate via Rust
-        tabData.findings = merge_findings(tabData.findings, newFindings);
+        await withTabLock(tabId, async () => {
+          const tabData = await getTabData(tabId);
+          tabData.url = tabData.url || message.url;
 
-        // scannedUrls stored as array since Set isn't JSON-serializable
-        if (!tabData.scannedUrls.includes(message.url)) {
-          tabData.scannedUrls.push(message.url);
-        }
+          // Deduplicate via Rust
+          tabData.findings = merge_findings(tabData.findings, newFindings);
 
-        tabData.scanned = (tabData.scanned || 0) + 1;
-        tabData.sources = tabData.sources || {};
-        tabData.sources[source] = (tabData.sources[source] || 0) + 1;
+          // scannedUrls stored as array since Set isn't JSON-serializable
+          if (!tabData.scannedUrls.includes(message.url)) {
+            tabData.scannedUrls.push(message.url);
+          }
 
-        await setTabData(tabId, tabData);
-        updateBadge(tabId, tabData.findings.length);
+          tabData.scanned = (tabData.scanned || 0) + 1;
+          tabData.sources = tabData.sources || {};
+          tabData.sources[source] = (tabData.sources[source] || 0) + 1;
+
+          await setTabData(tabId, tabData);
+          updateBadge(tabId, tabData.findings.length);
+        });
       }
 
       sendResponse({ findings: newFindings });
