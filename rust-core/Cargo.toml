@@ -1,6 +1,6 @@
 [package]
 name = "secrets-spotter-core"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -15,6 +15,7 @@ regex = "1"
 lazy_static = "1.4"
 console_error_panic_hook = "0.1"
 serde_json = "1"
+memchr = "2"
 
 [profile.release]
 opt-level = "s"

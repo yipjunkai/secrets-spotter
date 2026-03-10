@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Secrets Spotter - API Key & Leak Detector",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Detects exposed API keys, tokens, passwords, and secrets in web pages and network traffic. Scans DOM, fetch, XHR, WebSocket, and cookies in real time.",
   "permissions": ["activeTab", "storage", "webNavigation"],
   "host_permissions": ["<all_urls>"],
