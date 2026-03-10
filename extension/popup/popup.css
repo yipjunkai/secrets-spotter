@@ -104,6 +104,42 @@ h1 {
   word-break: break-all;
 }
 
+.jwt-details {
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid #e6e6e6;
+  border-radius: 3px;
+  background: #fafafa;
+}
+
+.jwt-details summary {
+  font-size: 11px;
+  color: #555;
+  cursor: pointer;
+}
+
+.jwt-content {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+
+.jwt-json {
+  font-size: 10px;
+  background: #f2f2f2;
+  padding: 6px;
+  border-radius: 3px;
+  overflow: auto;
+  max-height: 140px;
+}
+
+.jwt-error {
+  font-size: 10px;
+  color: #b00020;
+}
+
 .severity-critical { border-left-color: #c0392b; }
 .severity-high { border-left-color: #e67e22; }
 .severity-medium { border-left-color: #f39c12; }

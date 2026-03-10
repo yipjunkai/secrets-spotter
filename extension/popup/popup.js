@@ -2,6 +2,70 @@ document.addEventListener('DOMContentLoaded', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
 
+  function base64UrlDecode(input) {
+    const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+    const padLength = normalized.length % 4;
+    const padded = padLength === 0 ? normalized : normalized + '='.repeat(4 - padLength);
+    try {
+      return atob(padded);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function parseJwt(token) {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const headerJson = base64UrlDecode(parts[0]);
+    const payloadJson = base64UrlDecode(parts[1]);
+    if (!headerJson || !payloadJson) return null;
+    try {
+      const header = JSON.parse(headerJson);
+      const payload = JSON.parse(payloadJson);
+      return { header, payload, signature: parts[2] || '' };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function buildJwtSection(token) {
+    const decoded = parseJwt(token);
+    const details = document.createElement('details');
+    details.className = 'jwt-details';
+
+    const summary = document.createElement('summary');
+    summary.textContent = 'JWT decode';
+    details.appendChild(summary);
+
+    const content = document.createElement('div');
+    content.className = 'jwt-content';
+
+    if (!decoded) {
+      const error = document.createElement('div');
+      error.className = 'jwt-error';
+      error.textContent = 'Unable to decode token.';
+      content.appendChild(error);
+      details.appendChild(content);
+      return details;
+    }
+
+    const { header, payload } = decoded;
+
+    const headerBlock = document.createElement('pre');
+    headerBlock.className = 'jwt-json';
+    headerBlock.textContent = JSON.stringify(header, null, 2);
+
+    const payloadBlock = document.createElement('pre');
+    payloadBlock.className = 'jwt-json';
+    payloadBlock.textContent = JSON.stringify(payload, null, 2);
+
+    content.appendChild(headerBlock);
+    content.appendChild(payloadBlock);
+    details.appendChild(content);
+
+    return details;
+  }
+
   function renderFindings(data) {
     if (chrome.runtime.lastError) {
       console.warn('Secrets Spotter:', chrome.runtime.lastError.message);
@@ -86,6 +150,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       codeRow.appendChild(copyBtn);
       li.appendChild(header);
       li.appendChild(codeRow);
+
+      const isJwt = f.kind === 'JwtToken' || f.label === 'JWT Token';
+      if (isJwt) {
+        li.appendChild(buildJwtSection(f.full_match));
+      }
 
       if (f.sourceUrl && f.sourceUrl !== (data?.url || '')) {
         const srcUrl = document.createElement('div');
