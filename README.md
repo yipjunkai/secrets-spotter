@@ -7,7 +7,7 @@ A Chrome extension that scans web pages and network traffic for exposed secrets 
 - **Real-time scanning** of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
 - **37 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, and more
 - **False-positive filtering** using Shannon entropy, placeholder detection, and context analysis
-- **Visual highlighting** of detected secrets directly on the page
+- **JWT decoder in popup** — expandable header/payload JSON view for detected JWTs
 - **SPA-aware** — re-scans on pushState, replaceState, popstate, and hashchange navigations
 - **Fully local** — no data leaves your browser
 
@@ -19,7 +19,7 @@ Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
             → Background service worker runs WASM scanner
             → Rust matches against 37 regex patterns
             → False positives filtered (entropy, placeholders, English words)
-            → Findings highlighted on page + shown in popup
+            → Findings shown in popup (JWTs include a decoder view)
             → SPA navigations trigger re-scan automatically
 ```
 
@@ -136,7 +136,7 @@ This compiles the Rust core to WASM and outputs it to `extension/wasm/`.
 
 ### Usage
 
-Browse any website. The extension icon badge shows the count of secrets found. Click the icon to view findings grouped by severity, with redacted previews and copy-to-clipboard for full values. Detected secrets are also highlighted directly on the page with color-coded borders.
+Browse any website. The extension icon badge shows the count of secrets found. Click the icon to view findings grouped by severity, with redacted previews and copy-to-clipboard for full values. JWT findings include an expandable decoder with header and payload JSON.
 
 ## License
 

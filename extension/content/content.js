@@ -72,12 +72,7 @@
             }
             return;
           }
-          if (response?.findings?.length > 0) {
-            // Only highlight DOM-source findings (network ones aren't in the visible page)
-            if (source === 'dom') {
-              highlightFindings(response.findings);
-            }
-          }
+          // Highlighting disabled
         }
       );
     } catch {
@@ -140,50 +135,6 @@
     if (typeof text !== 'string') return;
     sendForScan(text, url, `network:${source}`, contentType);
   });
-
-  function highlightFindings(findings) {
-    const treeWalker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode(node) {
-          if (node.parentElement?.closest('.secrets-spotter-highlight')) {
-            return NodeFilter.FILTER_REJECT;
-          }
-          return NodeFilter.FILTER_ACCEPT;
-        }
-      }
-    );
-
-    const textNodes = [];
-    while (treeWalker.nextNode()) {
-      textNodes.push(treeWalker.currentNode);
-    }
-
-    for (const finding of findings) {
-      for (const node of textNodes) {
-        const idx = node.textContent.indexOf(finding.full_match);
-        if (idx === -1) continue;
-
-        const range = document.createRange();
-        range.setStart(node, idx);
-        range.setEnd(node, idx + finding.full_match.length);
-
-        const highlight = document.createElement('span');
-        highlight.className = 'secrets-spotter-highlight';
-        highlight.dataset.secretKind = finding.label;
-        highlight.dataset.severity = finding.severity;
-        highlight.title = `${finding.label} (${finding.severity})`;
-
-        try {
-          range.surroundContents(highlight);
-          break;
-        } catch {
-          // Skip if range crosses element boundaries
-        }
-      }
-    }
-  }
 
   if (document.readyState === 'complete') {
     scanPage();
