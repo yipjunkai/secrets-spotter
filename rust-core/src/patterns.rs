@@ -5,6 +5,7 @@ use crate::types::{SecretKind, Severity};
 
 pub struct SecretPattern {
     pub regex: Regex,
+    pub prefixes: &'static [&'static str],
     pub kind: SecretKind,
     pub label: &'static str,
     pub severity: Severity,
@@ -18,6 +19,7 @@ lazy_static! {
         // AWS Access Key ID
         SecretPattern {
             regex: Regex::new(r"AKIA[0-9A-Z]{16}").unwrap(),
+            prefixes: &["AKIA"],
             kind: SecretKind::AwsAccessKey,
             label: "AWS Access Key ID",
             severity: Severity::Critical,
@@ -25,6 +27,7 @@ lazy_static! {
         // AWS Temporary Access Key (STS)
         SecretPattern {
             regex: Regex::new(r"ASIA[0-9A-Z]{16}").unwrap(),
+            prefixes: &["ASIA"],
             kind: SecretKind::AwsTempAccessKey,
             label: "AWS Temporary Access Key (STS)",
             severity: Severity::Critical,
@@ -32,6 +35,7 @@ lazy_static! {
         // GitHub Personal Access Token
         SecretPattern {
             regex: Regex::new(r"ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}").unwrap(),
+            prefixes: &["ghp_", "github_pat_"],
             kind: SecretKind::GitHubToken,
             label: "GitHub Personal Access Token",
             severity: Severity::Critical,
@@ -39,6 +43,7 @@ lazy_static! {
         // GitHub OAuth Access Token
         SecretPattern {
             regex: Regex::new(r"gho_[A-Za-z0-9]{36}").unwrap(),
+            prefixes: &["gho_"],
             kind: SecretKind::GitHubOAuthToken,
             label: "GitHub OAuth Token",
             severity: Severity::Critical,
@@ -46,6 +51,7 @@ lazy_static! {
         // GitHub App Tokens (user-to-server, installation, refresh)
         SecretPattern {
             regex: Regex::new(r"gh[usr]_[A-Za-z0-9]{36}").unwrap(),
+            prefixes: &["ghu_", "ghs_", "ghr_"],
             kind: SecretKind::GitHubAppToken,
             label: "GitHub App Token",
             severity: Severity::Critical,
@@ -55,6 +61,7 @@ lazy_static! {
             regex: Regex::new(
                 r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
             ).unwrap(),
+            prefixes: &["-----BEGIN"],
             kind: SecretKind::PrivateKeyBlock,
             label: "Private Key (PEM)",
             severity: Severity::Critical,
@@ -64,6 +71,7 @@ lazy_static! {
             regex: Regex::new(
                 r#"(?i)(?:https?|ftp|ssh|mysql|postgresql)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{8,})@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}"#
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::PasswordInUrl,
             label: "Password in URL",
             severity: Severity::Critical,
@@ -73,6 +81,7 @@ lazy_static! {
             regex: Regex::new(
                 r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
             ).unwrap(),
+            prefixes: &["eyJ"],
             kind: SecretKind::JwtToken,
             label: "JWT Token",
             severity: Severity::High,
@@ -80,6 +89,7 @@ lazy_static! {
         // Slack Token
         SecretPattern {
             regex: Regex::new(r"xox[bpors]-[0-9]{10,13}-[A-Za-z0-9\-]{10,}").unwrap(),
+            prefixes: &["xox"],
             kind: SecretKind::SlackToken,
             label: "Slack Token",
             severity: Severity::Critical,
@@ -87,6 +97,7 @@ lazy_static! {
         // Slack App-Level Token
         SecretPattern {
             regex: Regex::new(r"xapp-[0-9]-[A-Za-z0-9]{10,}-[0-9]{10,}-[A-Za-z0-9]{10,}").unwrap(),
+            prefixes: &["xapp-"],
             kind: SecretKind::SlackAppToken,
             label: "Slack App-Level Token",
             severity: Severity::Critical,
@@ -94,6 +105,7 @@ lazy_static! {
         // Google API Key
         SecretPattern {
             regex: Regex::new(r"AIza[0-9A-Za-z_-]{35}").unwrap(),
+            prefixes: &["AIza"],
             kind: SecretKind::GoogleApiKey,
             label: "Google API Key",
             severity: Severity::Medium,
@@ -101,6 +113,7 @@ lazy_static! {
         // Stripe Secret Key
         SecretPattern {
             regex: Regex::new(r"sk_(?:live|test)_[A-Za-z0-9]{24,}").unwrap(),
+            prefixes: &["sk_live_", "sk_test_"],
             kind: SecretKind::StripeKey,
             label: "Stripe Secret Key",
             severity: Severity::Critical,
@@ -108,6 +121,7 @@ lazy_static! {
         // Stripe Restricted Key
         SecretPattern {
             regex: Regex::new(r"rk_(?:live|test)_[A-Za-z0-9]{24,}").unwrap(),
+            prefixes: &["rk_live_", "rk_test_"],
             kind: SecretKind::StripeRestrictedKey,
             label: "Stripe Restricted Key",
             severity: Severity::High,
@@ -115,6 +129,7 @@ lazy_static! {
         // Twilio API Key
         SecretPattern {
             regex: Regex::new(r"SK[0-9a-fA-F]{32}").unwrap(),
+            prefixes: &["SK"],
             kind: SecretKind::TwilioKey,
             label: "Twilio API Key",
             severity: Severity::Critical,
@@ -122,6 +137,7 @@ lazy_static! {
         // SendGrid API Key
         SecretPattern {
             regex: Regex::new(r"SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}").unwrap(),
+            prefixes: &["SG."],
             kind: SecretKind::SendGridKey,
             label: "SendGrid API Key",
             severity: Severity::Critical,
@@ -129,6 +145,7 @@ lazy_static! {
         // Discord Bot Token
         SecretPattern {
             regex: Regex::new(r"[MN][A-Za-z0-9]{23,}\.[\w-]{6}\.[\w-]{27,}").unwrap(),
+            prefixes: &[],
             kind: SecretKind::DiscordToken,
             label: "Discord Bot Token",
             severity: Severity::Critical,
@@ -136,6 +153,7 @@ lazy_static! {
         // Mailgun API Key
         SecretPattern {
             regex: Regex::new(r"key-[0-9a-zA-Z]{32}").unwrap(),
+            prefixes: &["key-"],
             kind: SecretKind::MailgunApiKey,
             label: "Mailgun API Key",
             severity: Severity::High,
@@ -143,6 +161,7 @@ lazy_static! {
         // npm Access Token
         SecretPattern {
             regex: Regex::new(r"npm_[A-Za-z0-9]{36}").unwrap(),
+            prefixes: &["npm_"],
             kind: SecretKind::NpmToken,
             label: "npm Access Token",
             severity: Severity::Critical,
@@ -150,6 +169,7 @@ lazy_static! {
         // PyPI API Token
         SecretPattern {
             regex: Regex::new(r"pypi-[A-Za-z0-9_-]{50,}").unwrap(),
+            prefixes: &["pypi-"],
             kind: SecretKind::PyPiToken,
             label: "PyPI API Token",
             severity: Severity::Critical,
@@ -157,6 +177,7 @@ lazy_static! {
         // Shopify Access Token
         SecretPattern {
             regex: Regex::new(r"shp(?:at|ss|ca|pa)_[0-9a-fA-F]{32}").unwrap(),
+            prefixes: &["shp"],
             kind: SecretKind::ShopifyToken,
             label: "Shopify Token",
             severity: Severity::Critical,
@@ -164,6 +185,7 @@ lazy_static! {
         // Square Access Token
         SecretPattern {
             regex: Regex::new(r"sq0atp-[A-Za-z0-9_-]{22}").unwrap(),
+            prefixes: &["sq0atp-"],
             kind: SecretKind::SquareAccessToken,
             label: "Square Access Token",
             severity: Severity::Critical,
@@ -171,6 +193,7 @@ lazy_static! {
         // Anthropic API Key
         SecretPattern {
             regex: Regex::new(r"sk-ant-api03-[A-Za-z0-9_-]{93}").unwrap(),
+            prefixes: &["sk-ant-api03-"],
             kind: SecretKind::AnthropicApiKey,
             label: "Anthropic API Key",
             severity: Severity::Critical,
@@ -178,6 +201,7 @@ lazy_static! {
         // OpenAI API Key (legacy format)
         SecretPattern {
             regex: Regex::new(r"sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}").unwrap(),
+            prefixes: &["sk-"],
             kind: SecretKind::OpenAiApiKey,
             label: "OpenAI API Key",
             severity: Severity::Critical,
@@ -185,6 +209,7 @@ lazy_static! {
         // OpenAI API Key (new project/service account format)
         SecretPattern {
             regex: Regex::new(r"sk-(?:proj|svcacct)-[A-Za-z0-9_-]{20,}").unwrap(),
+            prefixes: &["sk-proj-", "sk-svcacct-"],
             kind: SecretKind::OpenAiApiKey,
             label: "OpenAI API Key",
             severity: Severity::Critical,
@@ -192,6 +217,7 @@ lazy_static! {
         // DigitalOcean Token
         SecretPattern {
             regex: Regex::new(r"dop_v1_[0-9a-f]{64}").unwrap(),
+            prefixes: &["dop_v1_"],
             kind: SecretKind::DigitalOceanToken,
             label: "DigitalOcean Token",
             severity: Severity::Critical,
@@ -199,6 +225,7 @@ lazy_static! {
         // Linear API Key
         SecretPattern {
             regex: Regex::new(r"lin_api_[A-Za-z0-9]{40}").unwrap(),
+            prefixes: &["lin_api_"],
             kind: SecretKind::LinearApiKey,
             label: "Linear API Key",
             severity: Severity::High,
@@ -206,6 +233,7 @@ lazy_static! {
         // PostHog API Key (phc_ for project, phx_ for personal)
         SecretPattern {
             regex: Regex::new(r"ph[cx]_[A-Za-z0-9]{30,}").unwrap(),
+            prefixes: &["phc_", "phx_"],
             kind: SecretKind::PostHogApiKey,
             label: "PostHog API Key",
             severity: Severity::Medium,
@@ -219,6 +247,7 @@ lazy_static! {
             regex: Regex::new(
                 r"(?i)(?:aws_secret_access_key|aws_secret|secret_key)\s*[:=]\s*['\x22]?([A-Za-z0-9/+=]{40})['\x22]?"
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::AwsSecretKey,
             label: "AWS Secret Access Key",
             severity: Severity::Critical,
@@ -228,6 +257,7 @@ lazy_static! {
             regex: Regex::new(
                 r"(?i)(?:heroku[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})['\x22]?"
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::HerokuApiKey,
             label: "Heroku API Key",
             severity: Severity::High,
@@ -237,6 +267,7 @@ lazy_static! {
             regex: Regex::new(
                 r"(?i)(?:subscription[_\-]?key|ocp-apim-subscription-key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::AzureSubscriptionKey,
             label: "Azure Subscription Key",
             severity: Severity::High,
@@ -246,6 +277,7 @@ lazy_static! {
             regex: Regex::new(
                 r"(?i)(?:dd[_\-]?api[_\-]?key|datadog[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::DatadogApiKey,
             label: "Datadog API Key",
             severity: Severity::High,
@@ -259,6 +291,7 @@ lazy_static! {
             regex: Regex::new(
                 r"(?i)(?:api[_\-]?key|apikey|api[_\-]?secret)\s*[:=]\s*['\x22]?([A-Za-z0-9_\-]{20,64})['\x22]?"
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::GenericApiKey,
             label: "Generic API Key",
             severity: Severity::Medium,
@@ -268,6 +301,7 @@ lazy_static! {
             regex: Regex::new(
                 r#"(?i)(?:authorization|auth)\s*[:=]\s*['\x22]?Bearer\s+([A-Za-z0-9_\-\.]{20,512})['\x22]?"#
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::BearerToken,
             label: "Bearer Token",
             severity: Severity::High,
@@ -277,6 +311,7 @@ lazy_static! {
             regex: Regex::new(
                 r#"(?i)(?:api[_\-]?token|auth[_\-]?token|access[_\-]?token|client[_\-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9_\-\.]{20,512})['\x22]"#
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::GenericToken,
             label: "Generic API Token",
             severity: Severity::High,
@@ -290,6 +325,7 @@ lazy_static! {
             regex: Regex::new(
                 r#"(?i)(?:key|token|secret|credential|auth|password|apikey|api_key|api[_-]?secret|private[_-]?key|access[_-]?key|client[_-]?secret|signing[_-]?key|encryption[_-]?key|session[_-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9+/=_\-]{32,256})['\x22]"#
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::HighEntropyString,
             label: "High-Entropy Secret",
             severity: Severity::Low,
@@ -301,6 +337,7 @@ lazy_static! {
             regex: Regex::new(
                 r#"(?i)(?:^|[\s,;{(]|(?:export|const|let|var|def|set)\s+)(?:password|passwd|pwd|secret_key|api_secret|private_key)\s*[:=]\s*['\x22]([^'\x22\s]{12,64})['\x22]"#
             ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::GenericSecret,
             label: "Generic Secret/Password",
             severity: Severity::Medium,

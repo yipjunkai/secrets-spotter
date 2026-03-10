@@ -1,5 +1,6 @@
 use lazy_static::lazy_static;
-use regex::Regex;
+use memchr::memmem;
+use regex::{Regex, RegexSet};
 
 use crate::patterns::PATTERNS;
 use crate::types::{SecretFinding, SecretKind};
@@ -25,6 +26,10 @@ lazy_static! {
     static ref HAS_FILE_EXT: Regex = Regex::new(
         r"\.(pdf|html?|js|css|png|jpg|jpeg|gif|svg|woff2?|ttf|json|xml|ya?ml|txt|md|csv|zip|gz|tar|exe|dmg|pkg|deb|rpm|sh|bat|py|rb|go|rs|java|ts|tsx|jsx|vue|php)\b"
     ).unwrap();
+
+    static ref REGEX_SET: RegexSet = RegexSet::new(
+        PATTERNS.iter().map(|p| p.regex.as_str())
+    ).unwrap();
 }
 
 const MAX_MATCH_LEN: usize = 2048;
@@ -35,7 +40,14 @@ impl SecretDetector {
     pub fn scan(text: &str) -> Vec<SecretFinding> {
         let mut findings = Vec::new();
 
-        for pattern in PATTERNS.iter() {
+        let candidates = REGEX_SET.matches(text);
+        for idx in candidates.iter() {
+            let pattern = &PATTERNS[idx];
+
+            if !Self::prefix_matches(pattern.prefixes, text) {
+                continue;
+            }
+
             for mat in pattern.regex.find_iter(text) {
                 if mat.len() > MAX_MATCH_LEN {
                     continue;
@@ -121,6 +133,16 @@ impl SecretDetector {
             }
             _ => false,
         }
+    }
+
+    fn prefix_matches(prefixes: &[&str], text: &str) -> bool {
+        if prefixes.is_empty() {
+            return true;
+        }
+        let haystack = text.as_bytes();
+        prefixes
+            .iter()
+            .any(|prefix| memmem::find(haystack, prefix.as_bytes()).is_some())
     }
 
     /// Shannon entropy in bits per character

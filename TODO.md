@@ -12,7 +12,6 @@
 
 ## Correctness
 
-- [x] **Highlight `break` outside `try`** — `content.js` `break` moved inside `try` block after `surroundContents()`
 - [x] **`scannedUrls` accumulates `undefined`** — `service-worker.js` now guards `push` with `message.url` truthiness check
 - [x] **SPA navigation doesn't clear service worker tab data** — content.js now sends `CLEAR_TAB` message to service worker on SPA navigation, resetting findings and badge
 - [x] **`tabLocks` Map leaks entries** — `service-worker.js` `onRemoved` now deletes the tab's entry from `tabLocks` Map
@@ -67,16 +66,16 @@
 - [ ] **O(n^2) dedup via `Vec::remove`** — `detector.rs:145-157` shifts all elements on each removal. Use `retain()` for a single-pass approach
 - [ ] **Needless `String` alloc before false-positive check** — `detector.rs:38` move `to_string()` after `is_false_positive` to skip allocation for discarded matches
 - [ ] **Triple char-class iteration** — `detector.rs:103-106` three separate `.chars().any()` loops can be folded into one pass
+- [ ] **Hashing can exceed scan cap** — `content.js` hashes full text even though scan is capped at 2MB; hash the truncated text to cut CPU on huge pages
+- [ ] **Mutation batches can blow past 2MB** — `content.js` concatenates added node text without a cap; clamp combined text before hashing/sending
 - [ ] **`scannedHashes` grows unbounded** — `content.js:8` on long-lived SPAs the Set grows forever. Add a size cap
 - [ ] **`pendingNodes` holds detached DOM refs** — `content.js:166-187` store text content instead of node references to avoid preventing GC
 - [ ] **`scannedUrls` linear search** — `service-worker.js:114` `Array.includes` is O(n). Use a Set for in-memory checks
 - [ ] **`extractStructuredSecrets` queries all elements** — `content.js:79` `querySelectorAll('*')` iterates every DOM node. On large pages this is expensive
-- [ ] Track existing highlights instead of removing and re-walking the entire DOM
 - [ ] Hash text before sending to service worker to skip already-scanned content
 - [x] Add input size limit for scanning — `lib.rs` caps input at 2MB with UTF-8-safe truncation
-- [ ] **All 37 patterns run sequentially** — `detector.rs:36` iterates patterns in a `for` loop, scanning the full text 37 times. Use `regex::RegexSet` to test all patterns in a single pass, then only run individual regexes for matches. Additionally, pre-screen known-prefix patterns with fast `aho-corasick` / `memchr` substring search before invoking full regex, and reorder patterns so cheap fixed-prefix checks run before expensive generic/entropy patterns
+- [x] **All 37 patterns run sequentially** — `detector.rs` now uses `RegexSet` for single-pass candidate matching, then runs individual regexes only for hits. Each `SecretPattern` carries a `prefixes` field; `prefix_matches()` uses `memchr::memmem` to pre-screen candidates before the full regex fires
 - [ ] **`document.documentElement.cloneNode(true)` on large pages** — `content.js:19` clones the entire DOM tree; on 20MB+ pages this can cause OOM or long freezes
-- [ ] **Highlight loop is O(findings × text nodes)** — `content.js:138-160` iterates all text nodes per finding; build a single text-node index and look up matches
 - [ ] **No WASM return size limit** — `lib.rs:21` converts findings to `JsValue` without capping; a page with thousands of matches produces a huge serialized payload
 
 ## Cleanup / Resource Leaks
@@ -90,6 +89,7 @@
 ## Architecture
 
 - [ ] Scope `window.postMessage` — use a nonce or check `event.origin` to prevent spoofed messages
+- [ ] **Origin-less pages break postMessage** — `file://`/`null` origins will fail strict origin checks; add a nonce handshake to allow safe `'*'` in those cases
 - [ ] Add retry/fallback if WASM fails to load
 - [ ] Fix WebSocket wrapper breaking `instanceof` checks
 
@@ -99,13 +99,12 @@
 - [ ] Severity filtering in popup
 - [ ] Color badge by highest severity, not just count
 - [ ] Copy-all / export findings (JSON/CSV)
-- [ ] Preserve highlights across SPA navigation (React/Vue route changes)
 - [ ] Options page for configuration (toggle patterns, manage allowlist, domain settings)
 - [ ] Onboarding page shown on first install
 - [ ] "Rate this extension" prompt after N findings detected
+- [ ] **Mask secrets by default in popup** — show redacted `full_match` with a per-item reveal toggle to reduce shoulder-surfing
 - [ ] **Popup has no loading state** — `popup.js` fetches findings asynchronously but shows no spinner or "Loading…" indicator; the popup appears empty until data arrives
 - [ ] **Very long secrets overflow popup** — `popup.js:46-83` renders `full_match` without truncation; a 100KB+ match will break the popup layout
-- [ ] **Highlight causes layout shift** — `content.css` uses `border` which shifts surrounding content; use `outline` or `box-shadow` instead
 - [x] **JWT decoder in popup** — when a JWT is detected, add an expandable section that decodes and displays the header and payload (base64-decoded JSON), showing claims like `exp`, `iat`, `sub`, `iss` with expiration status. Decode client-side only, no external calls
 - [ ] **No accessibility** — `popup.html` lacks ARIA labels, semantic landmarks, keyboard navigation, and screen reader support
 - [ ] **Clipboard "Copied!" shown even on failure** — `popup.js:63-68` shows success feedback before the `writeText` promise resolves; if clipboard access is denied, feedback is incorrect
@@ -160,8 +159,7 @@
 - [ ] **No plugin/rule system** — adding a new secret pattern requires modifying `patterns.rs` + `types.rs` (new `SecretKind` variant), recompiling WASM, and rebuilding. Consider a config-driven pattern format (TOML/JSON) that can be loaded at runtime
 - [ ] **Chrome-only** — Manifest V3 + `chrome.*` APIs used throughout with no abstraction layer. Abstract browser APIs behind a compatibility shim if Firefox/Safari support is planned
 - [ ] **No configuration surface** — no options page, no allowlisting, no per-site toggles. Every behavioral change requires code modification (see UX section for options page)
-- [ ] **Tightly coupled highlighting** — DOM highlighting logic is interleaved with scanning in `content.js` rather than a separate module; extract into a `highlighter.js` module that can be swapped, themed, or disabled independently
-- [ ] **Pattern scaling bottleneck** — all 37 patterns run sequentially with no `RegexSet` pre-filter; adding more patterns linearly degrades performance (see Performance section for `RegexSet` item)
+- [x] **Pattern scaling bottleneck** — `RegexSet` pre-filter now tests all patterns in a single DFA pass; adding more patterns no longer linearly degrades scan time
 
 ## CI/CD
 
