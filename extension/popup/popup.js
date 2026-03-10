@@ -66,16 +66,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     return details;
   }
 
+  let lastFindingsKey = '';
+
   function renderFindings(data) {
     if (chrome.runtime.lastError) {
       console.warn('Secrets Spotter:', chrome.runtime.lastError.message);
       return;
     }
     const findings = data?.findings || [];
-    const summaryEl = document.getElementById('summary');
-    const listEl = document.getElementById('findings-list');
-    const noFindingsEl = document.getElementById('no-findings');
     const statusEl = document.getElementById('status');
+    const scanIndicator = document.getElementById('scan-indicator');
+
+    // Always update scan indicator and status bar (no interactive state)
+    const lastScanTs = data?.lastScanTs || 0;
+    const isScanning = lastScanTs > 0 && (Date.now() - lastScanTs) < 4000;
+    scanIndicator.classList.toggle('hidden', !isScanning);
 
     const scannedCount = data?.scannedCount || 0;
     const skippedCount = data?.skippedCount || 0;
@@ -88,6 +93,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const statusSmall = document.createElement('small');
     statusSmall.textContent = `${scannedCount} scanned, ${skippedCount} skipped${sourceBreakdown ? ` (${sourceBreakdown})` : ''}`;
     statusEl.appendChild(statusSmall);
+
+    // Only rebuild findings list when findings actually change
+    const findingsKey = JSON.stringify(findings.map(f => f.full_match));
+    if (findingsKey === lastFindingsKey) return;
+    lastFindingsKey = findingsKey;
+
+    const summaryEl = document.getElementById('summary');
+    const listEl = document.getElementById('findings-list');
+    const noFindingsEl = document.getElementById('no-findings');
 
     listEl.innerHTML = '';
     noFindingsEl.classList.add('hidden');
@@ -175,6 +189,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   fetchFindings();
+
+  // Poll for updated findings while popup is open
+  const pollInterval = setInterval(fetchFindings, 2000);
+  window.addEventListener('unload', () => clearInterval(pollInterval));
 
   const debugSection = document.getElementById('debug-section');
   const debugContent = document.getElementById('debug-log-content');

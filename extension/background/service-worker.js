@@ -187,6 +187,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           tabData.scanned = (tabData.scanned || 0) + 1;
+          tabData.lastScanTs = Date.now();
           tabData.sources = tabData.sources || {};
           tabData.sources[source] = (tabData.sources[source] || 0) + 1;
 
@@ -238,6 +239,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         scannedCount: tabData.scanned || 0,
         skippedCount: tabData.skipped || 0,
         sources: tabData.sources || {},
+        lastScanTs: tabData.lastScanTs || 0,
       });
     }).catch((err) => {
       console.warn('Secrets Spotter: get findings failed:', err.message);

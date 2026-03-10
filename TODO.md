@@ -1,37 +1,5 @@
 # TODO
 
-## Security
-
-- [x] **XSS via `innerHTML`** — `popup.js` now uses `createElement`/`textContent` instead of `innerHTML`
-- [x] **`postMessage` uses `'*'` target origin** — `interceptor.js` now uses `window.location.origin`; `content.js` validates `event.origin`
-- [x] **Raw secret leaked in `full_match`** — storage access tightened from `TRUSTED_AND_UNTRUSTED_CONTEXTS` to `TRUSTED_CONTEXTS`; `full_match` kept in storage for popup display/copy
-- [x] **Unescaped attribute output** — `attributes.rs:18` now escapes `"` as `&quot;` in values passed to `format_attributes`
-- [x] **Cookie value quote injection** — `cookies.rs:11` now escapes `"` as `\"` in cookie values before formatting
-- [x] **No input size limit on `scan_text`** — `lib.rs` now caps input at 2MB with UTF-8-safe truncation
-- [x] **ReDoS risk in keyword patterns** — `patterns.rs` unbounded `{20,}` quantifiers now capped to `{20,512}`; `{32,256}` was already bounded
-
-## Correctness
-
-- [x] **`scannedUrls` accumulates `undefined`** — `service-worker.js` now guards `push` with `message.url` truthiness check
-- [x] **SPA navigation doesn't clear service worker tab data** — content.js now sends `CLEAR_TAB` message to service worker on SPA navigation, resetting findings and badge
-- [x] **`tabLocks` Map leaks entries** — `service-worker.js` `onRemoved` now deletes the tab's entry from `tabLocks` Map
-- [x] **EventSource scanning listeners can't be removed** — `interceptor.js` now wraps `removeEventListener` with ref-counting to clean up `onMessage` when last listener is removed
-- [x] **WASM `unwrap()` panics on malformed data** — `lib.rs` `merge_findings` now uses `unwrap_or_default()` for deserialization, falling back to empty vec
-- [x] **Shannon entropy uses bytes, not chars** — `detector.rs` now iterates `s.chars()` with a `HashMap<char, u32>` for correct multi-byte UTF-8 entropy
-- [x] **Char-class check ignores non-ASCII** — `detector.rs` now counts a 4th class for non-alphanumeric chars (symbols, punctuation, non-ASCII)
-- [x] **Tab lock error recovery is broken** — `service-worker.js` now uses `prev.catch(() => {}).then(fn)` so each operation starts from a clean state
-- [x] **`merge_findings` deduplicates by label+match, losing position** — Now deduplicates by `full_match` value only, keeping highest severity
-- [x] **Mutation observer `pendingNodes` grows unbounded** — `content.js` now caps `pendingNodes` at 1000 entries
-- [x] **Missing message validation from MAIN world** — `content.js` now validates `typeof text === 'string'` before passing to scanner
-
-## Regressions from recent fixes
-
-- [x] **`merge_findings` output order is non-deterministic** — output now sorted by severity then `full_match` for deterministic display
-- [x] **SPA `CLEAR_TAB` briefly shows zero findings** — replaced with `CLEAR_DOM_FINDINGS` that only removes DOM-sourced findings, preserving network findings; re-scans immediately
-- [x] **Char-class relaxation may increase false positives** — diversity check now counts only alphanumeric classes (upper/lower/digit), requiring 2 of 3; symbols/non-ASCII no longer count toward the threshold
-- [x] **EventSource ref-counting is imprecise** — switched from counter to Set-based listener tracking, matching browser dedup semantics
-- [x] **`pagehide` may not fire on extension context invalidation** — `content.js` checks `chrome.runtime.id` liveness every 5s; on invalidation, dispatches `__SECRETS_SPOTTER_CLEANUP__` event to signal MAIN world `interceptor.js` to abort fetches
-
 ## Detection
 
 - [ ] Handle CORS failures on external script fetching (fall back without credentials)
@@ -71,20 +39,11 @@
 - [ ] **`scannedHashes` grows unbounded** — `content.js:8` on long-lived SPAs the Set grows forever. Add a size cap
 - [ ] **`pendingNodes` holds detached DOM refs** — `content.js:166-187` store text content instead of node references to avoid preventing GC
 - [ ] **`scannedUrls` linear search** — `service-worker.js:114` `Array.includes` is O(n). Use a Set for in-memory checks
+- [ ] **Duplicate fetch scans for same endpoint** — `interceptor.js` sends every fetch response for scanning even if the same URL has already been scanned. Dedup intercepted fetches by URL (or URL + method) to avoid redundant WASM calls on repeated API requests
 - [ ] **`extractStructuredSecrets` queries all elements** — `content.js:79` `querySelectorAll('*')` iterates every DOM node. On large pages this is expensive
 - [ ] Hash text before sending to service worker to skip already-scanned content
-- [x] Add input size limit for scanning — `lib.rs` caps input at 2MB with UTF-8-safe truncation
-- [x] **All 37 patterns run sequentially** — `detector.rs` now uses `RegexSet` for single-pass candidate matching, then runs individual regexes only for hits. Each `SecretPattern` carries a `prefixes` field; `prefix_matches()` uses `memchr::memmem` to pre-screen candidates before the full regex fires
 - [ ] **`document.documentElement.cloneNode(true)` on large pages** — `content.js:19` clones the entire DOM tree; on 20MB+ pages this can cause OOM or long freezes
 - [ ] **No WASM return size limit** — `lib.rs:21` converts findings to `JsValue` without capping; a page with thousands of matches produces a huge serialized payload
-
-## Cleanup / Resource Leaks
-
-- [x] **MutationObserver never disconnected** — `content.js` now disconnects observer, clears `scanTimeout`, and empties `pendingNodes` on `pagehide`
-- [x] **WebSocket listener + timer leak** — `interceptor.js` now listens for `close` and `error` events to clear `flushTimer` and flush remaining buffer
-- [x] **EventSource listener + timer leak** — `interceptor.js` now listens for `error` with `readyState === CLOSED` check to clear `flushTimer` and flush buffer
-- [x] **No page unload cleanup in interceptor** — WebSocket/EventSource close handlers clean up their own timers; `pagehide` aborts in-flight fetch requests. API patches are acceptable since page is unloading
-- [x] **External script/stylesheet fetches not abortable** — `interceptor.js` now uses a shared `AbortController` aborted on `pagehide`
 
 ## Architecture
 
@@ -103,9 +62,8 @@
 - [ ] Onboarding page shown on first install
 - [ ] "Rate this extension" prompt after N findings detected
 - [ ] **Mask secrets by default in popup** — show redacted `full_match` with a per-item reveal toggle to reduce shoulder-surfing
-- [ ] **Popup has no loading state** — `popup.js` fetches findings asynchronously but shows no spinner or "Loading…" indicator; the popup appears empty until data arrives
+- [x] **Popup has no loading state** — popup now shows "Scanning page..." indicator based on `lastScanTs` recency, and polls for updated findings every 2s while open
 - [ ] **Very long secrets overflow popup** — `popup.js:46-83` renders `full_match` without truncation; a 100KB+ match will break the popup layout
-- [x] **JWT decoder in popup** — when a JWT is detected, add an expandable section that decodes and displays the header and payload (base64-decoded JSON), showing claims like `exp`, `iat`, `sub`, `iss` with expiration status. Decode client-side only, no external calls
 - [ ] **No accessibility** — `popup.html` lacks ARIA labels, semantic landmarks, keyboard navigation, and screen reader support
 - [ ] **Clipboard "Copied!" shown even on failure** — `popup.js:63-68` shows success feedback before the `writeText` promise resolves; if clipboard access is denied, feedback is incorrect
 
@@ -119,8 +77,6 @@
 
 ## Testing
 
-- [x] Rust unit tests for detector and false positive logic
-- [x] Rust unit tests for regex patterns (true/false positive cases)
 - [ ] Integration tests with sample HTML pages containing known secrets
 - [ ] CI test step in GitHub Actions
 - [ ] Performance benchmarks for pattern matching (`benches/` directory + CI regression checks)
@@ -152,18 +108,15 @@
 
 ## Maintainability & Adaptability
 
-- [ ] **No test coverage** — no unit tests exist in the repo; any refactor or pattern change can silently break detection. The 37 regex patterns are especially fragile without regression tests (see Testing section)
 - [ ] **Large monolithic JS files** — `content.js`, `interceptor.js`, and `service-worker.js` each handle multiple responsibilities. Split `service-worker.js` into separate modules (e.g. `wasm-lifecycle.js`, `storage.js`, `badge.js`, `message-router.js`)
 - [ ] **No TypeScript** — all extension JS is untyped; message shapes between content scripts, service worker, and popup are implicit contracts with no schema enforcement. Add at minimum JSDoc type annotations for message interfaces, or migrate to TypeScript
 - [ ] **Version sync is manual** — `Cargo.toml` and `manifest.json` versions must be updated in lockstep with no automation; add a CI check or build-time sync script
 - [ ] **No plugin/rule system** — adding a new secret pattern requires modifying `patterns.rs` + `types.rs` (new `SecretKind` variant), recompiling WASM, and rebuilding. Consider a config-driven pattern format (TOML/JSON) that can be loaded at runtime
 - [ ] **Chrome-only** — Manifest V3 + `chrome.*` APIs used throughout with no abstraction layer. Abstract browser APIs behind a compatibility shim if Firefox/Safari support is planned
 - [ ] **No configuration surface** — no options page, no allowlisting, no per-site toggles. Every behavioral change requires code modification (see UX section for options page)
-- [x] **Pattern scaling bottleneck** — `RegexSet` pre-filter now tests all patterns in a single DFA pass; adding more patterns no longer linearly degrades scan time
 
 ## CI/CD
 
-- [x] **Version mismatch** — versions now aligned at `1.0.1`; build script should sync `manifest.json` from `Cargo.toml`
 - [ ] **Release artifact path broken** — `release.yml:92-93` references flat artifact filenames but `actions/download-artifact` nests them in subdirectories
 - [ ] **Release job skips verification** — `release.yml` depends only on the `build` job, not the full `verify` pipeline; untested code can ship
 - [ ] **No dependency vulnerability scanning** — no `cargo-audit`, `cargo-deny`, or Dependabot config; vulnerable dependencies go undetected
