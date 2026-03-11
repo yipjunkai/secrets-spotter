@@ -27,7 +27,7 @@
 - [ ] Add allowlisting for known-safe values (public keys, test fixtures)
 - [ ] Avoid matching generic patterns inside URL paths vs. query param leaks
 - [ ] **Hardcoded entropy threshold** — `detector.rs:102` uses `3.5` without documentation of why; different secret types may benefit from different thresholds
-- [ ] **Filter out developer-like variable names** — generic/entropy patterns match camelCase (`myApiKey`), PascalCase (`ApiKeyManager`), and snake*case (`api_key_value`) identifiers that are clearly code symbols, not secrets. Add a false-positive check that rejects values matching common naming conventions (e.g. `^[a-z]+([A-Z][a-z]+)+$`, `^[A-Z][a-z]+([A-Z][a-z]+)+$`, `^[a-z]+(*[a-z]+)+$`)
+- [x] **Filter out developer-like variable names** — `detector.rs` `CODE_IDENTIFIER` regex rejects camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case, and dot-notation values (with optional `_`/`__` prefixes/suffixes) across all 5 generic SecretKinds
 
 ## Performance
 
