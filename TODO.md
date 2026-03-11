@@ -2,7 +2,7 @@
 
 ## Detection
 
-- [ ] Handle CORS failures on external script fetching (fall back without credentials)
+- [x] Handle CORS failures on external script fetching — changed `credentials: 'include'` to `credentials: 'same-origin'` in `interceptor.js`; additionally, external resource scanning is now disabled by default (`SCAN_EXTERNAL_RESOURCES = false`) because the MAIN world fetches are subject to the page's CSP `connect-src` directive, causing console errors on strict-CSP sites. To fully fix, external fetches would need to be moved to the service worker (extension origin, not subject to page CSP)
 - [ ] Support scanning inside `<iframe>` content
 - [ ] More known-prefix patterns:
   - [ ] GitLab PAT — `glpat-[A-Za-z0-9_-]{20}`
@@ -31,18 +31,18 @@
 
 ## Performance
 
-- [ ] **O(n^2) dedup via `Vec::remove`** — `detector.rs:145-157` shifts all elements on each removal. Use `retain()` for a single-pass approach
-- [ ] **Needless `String` alloc before false-positive check** — `detector.rs:38` move `to_string()` after `is_false_positive` to skip allocation for discarded matches
-- [ ] **Triple char-class iteration** — `detector.rs:103-106` three separate `.chars().any()` loops can be folded into one pass
-- [ ] **Hashing can exceed scan cap** — `content.js` hashes full text even though scan is capped at 2MB; hash the truncated text to cut CPU on huge pages
-- [ ] **Mutation batches can blow past 2MB** — `content.js` concatenates added node text without a cap; clamp combined text before hashing/sending
-- [ ] **`scannedHashes` grows unbounded** — `content.js:8` on long-lived SPAs the Set grows forever. Add a size cap
-- [ ] **`pendingNodes` holds detached DOM refs** — `content.js:166-187` store text content instead of node references to avoid preventing GC
-- [ ] **`scannedUrls` linear search** — `service-worker.js:114` `Array.includes` is O(n). Use a Set for in-memory checks
+- [x] **O(n^2) dedup via `Vec::remove`** — `detector.rs` now uses a single-pass `drain` + `Vec::with_capacity` approach instead of shifting elements on each removal
+- [x] **Needless `String` alloc before false-positive check** — `detector.rs` now borrows `mat.as_str()` for `is_false_positive` and `redact`; `.to_string()` deferred until after the match is confirmed
+- [x] **Triple char-class iteration** — `detector.rs` now uses a single `for c in value.chars()` loop with early exit once 2 character classes are found
+- [x] **Hashing can exceed scan cap** — `content.js` now truncates text to 2MB (`MAX_SCAN_SIZE`) before hashing and sending, matching the WASM cap in `lib.rs`
+- [x] **Mutation batches can blow past 2MB** — covered by the `MAX_SCAN_SIZE` truncation in `sendForScan`; all text flows through this function before hashing/sending
+- [x] **`scannedHashes` grows unbounded** — `content.js` now caps `scannedHashes` at 500 entries (`MAX_HASHES`); clears and accepts a re-scan burst when exceeded
+- [x] **`pendingNodes` holds detached DOM refs** — `content.js` now extracts `textContent` eagerly in the MutationObserver callback and stores strings (`pendingTexts`) instead of node references
+- [x] **`scannedUrls` linear search** — kept as `Array.includes`; the array rarely exceeds ~100 entries per tab, making O(n) `includes` negligible in practice. A `Set`-based approach was tested and reverted as it introduced an O(n) construction + O(n) spread on every `SCAN_TEXT` message — a net regression for the common repeated-URL case
 - [ ] **Duplicate fetch scans for same endpoint** — `interceptor.js` sends every fetch response for scanning even if the same URL has already been scanned. Dedup intercepted fetches by URL (or URL + method) to avoid redundant WASM calls on repeated API requests
 - [ ] **`extractStructuredSecrets` queries all elements** — `content.js:79` `querySelectorAll('*')` iterates every DOM node. On large pages this is expensive
 - [ ] Hash text before sending to service worker to skip already-scanned content
-- [ ] **`document.documentElement.cloneNode(true)` on large pages** — `content.js:19` clones the entire DOM tree; on 20MB+ pages this can cause OOM or long freezes
+- [x] **`document.documentElement.cloneNode(true)` on large pages** — removed; `getPageSource()` now returns `document.documentElement.outerHTML` directly (the clone was only needed to strip highlight wrappers, which no longer exist)
 - [ ] **No WASM return size limit** — `lib.rs:21` converts findings to `JsValue` without capping; a page with thousands of matches produces a huge serialized payload
 
 ## Architecture

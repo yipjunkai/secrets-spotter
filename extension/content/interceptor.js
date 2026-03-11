@@ -8,6 +8,14 @@
   const MAX_SIZE = 2_000_000; // 2MB cap
   const BATCH_INTERVAL = 2000; // 2s flush for streaming sources
 
+  // Re-fetching external <script src> and <link stylesheet> files is disabled by
+  // default because the fetch runs in the MAIN world (under the page's CSP).
+  // Sites with strict Content-Security-Policy `connect-src` directives will block
+  // these fetches and log noisy console errors.  Most secrets in external scripts
+  // are already caught indirectly when the script uses them in fetch/XHR calls
+  // (intercepted by the patched network APIs above).  Set to `true` to enable.
+  const SCAN_EXTERNAL_RESOURCES = false;
+
   const SKIP_EXTENSIONS = /\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|tiff|avif|woff2?|ttf|eot|otf|mp3|mp4|webm|ogg|wav|avi|mov|pdf|zip|tar|gz|br|map|wasm)(\?|$)/i;
 
   const SKIP_CONTENT_TYPES = /^(image|audio|video|font)\//i;
@@ -319,7 +327,7 @@
       if (!shouldScan(src, '')) continue;
 
       // Use originalFetch to avoid triggering our own fetch() interceptor
-      originalFetch(src, { credentials: 'include', signal: fetchController.signal })
+      originalFetch(src, { credentials: 'same-origin', signal: fetchController.signal })
         .then((res) => {
           if (!res.ok) return;
           const ct = res.headers.get('content-type') || '';
@@ -344,7 +352,7 @@
       if (!shouldScan(href, '')) continue;
 
       // Use originalFetch to avoid triggering our own fetch() interceptor
-      originalFetch(href, { credentials: 'include', signal: fetchController.signal })
+      originalFetch(href, { credentials: 'same-origin', signal: fetchController.signal })
         .then((res) => {
           if (!res.ok) return;
           return res.text();
@@ -366,13 +374,17 @@
 
   // Trigger after DOM is fully loaded so all script/link tags are present
   if (document.readyState === 'complete') {
-    scanExternalScripts();
-    scanExternalStylesheets();
+    if (SCAN_EXTERNAL_RESOURCES) {
+      scanExternalScripts();
+      scanExternalStylesheets();
+    }
     scanCookies();
   } else {
     window.addEventListener('load', () => {
-      scanExternalScripts();
-      scanExternalStylesheets();
+      if (SCAN_EXTERNAL_RESOURCES) {
+        scanExternalScripts();
+        scanExternalStylesheets();
+      }
       scanCookies();
     }, { once: true });
   }

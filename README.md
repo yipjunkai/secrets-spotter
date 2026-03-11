@@ -6,7 +6,7 @@ A Chrome extension that scans web pages and network traffic for exposed secrets 
 
 - **Real-time scanning** of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
 - **37 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, and more
-- **False-positive filtering** using Shannon entropy, placeholder detection, and context analysis
+- **False-positive filtering** using Shannon entropy, placeholder detection, code identifier rejection, and context analysis
 - **JWT decoder in popup** — expandable header/payload JSON view for detected JWTs
 - **SPA-aware** — re-scans on pushState, replaceState, popstate, and hashchange navigations
 - **Fully local** — no data leaves your browser
@@ -16,9 +16,11 @@ A Chrome extension that scans web pages and network traffic for exposed secrets 
 ```text
 Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
             → content.js extracts DOM text + structured attributes
+            → Text truncated to 2 MB and deduplicated by SHA-256 hash
             → Background service worker runs WASM scanner
-            → Rust matches against 37 regex patterns
-            → False positives filtered (entropy, placeholders, English words)
+            → Rust matches against 37 regex patterns (RegexSet + memchr pre-filter)
+            → False positives filtered (entropy, placeholders, code identifiers, English words)
+            → Findings deduplicated in single O(n) pass, merged across scan batches
             → Findings shown in popup (JWTs include a decoder view)
             → SPA navigations trigger re-scan automatically
 ```
@@ -43,8 +45,7 @@ secrets-spotter/
 │   │   └── service-worker.js
 │   ├── content/
 │   │   ├── interceptor.js   # Network traffic capture (MAIN world)
-│   │   ├── content.js       # DOM scanning + highlighting (ISOLATED world)
-│   │   └── content.css
+│   │   └── content.js       # DOM scanning (ISOLATED world)
 │   ├── popup/
 │   │   ├── popup.html
 │   │   ├── popup.js
@@ -114,6 +115,17 @@ Broad keyword match (`key`, `token`, `secret`, `password`, etc.) with Shannon en
 - **Character class diversity** — requires mix of uppercase, lowercase, digits, or symbols/non-ASCII
 - **English word filtering** — ignores lowercase hyphenated words like `my-setting`
 - **URL / path exclusion** — ignores values that look like URLs or file paths
+- **Code identifier rejection** — skips camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case, and dot-notation values
+
+## Configuration
+
+### `SCAN_EXTERNAL_RESOURCES` (interceptor.js)
+
+Controls whether the extension re-fetches external `<script src>` and `<link stylesheet>` files to scan their contents. **Default: `false`.**
+
+This is disabled by default because the interceptor runs in the page's MAIN world, where fetches are subject to the page's Content Security Policy (CSP). Sites with strict `connect-src` directives will block these fetches and log console errors. Most secrets in external scripts are already caught indirectly when the script uses them in fetch/XHR calls, which the interceptor captures.
+
+To enable, set `SCAN_EXTERNAL_RESOURCES = true` in `extension/content/interceptor.js`.
 
 ## Development
 
