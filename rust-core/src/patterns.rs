@@ -13,7 +13,7 @@ pub struct SecretPattern {
 
 lazy_static! {
     pub static ref PATTERNS: Vec<SecretPattern> = vec![
-        // ── Known-prefix patterns (28) ──────────────────────────────────
+        // ── Known-prefix patterns (38) ──────────────────────────────────
         // Match by a fixed prefix or structure baked into the key itself.
 
         // AWS Access Key ID
@@ -69,7 +69,7 @@ lazy_static! {
         // Password in URL
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:https?|ftp|ssh|mysql|postgresql)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{8,})@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}"#
+                r#"(?i)(?:https?|ftp|ssh|mysql|postgresql|postgres|redis|mongodb|amqp|smtp|mariadb|cockroachdb)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{8,})@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::PasswordInUrl,
@@ -237,6 +237,86 @@ lazy_static! {
             kind: SecretKind::PostHogApiKey,
             label: "PostHog API Key",
             severity: Severity::Medium,
+        },
+        // GitLab Personal Access Token
+        SecretPattern {
+            regex: Regex::new(r"glpat-[A-Za-z0-9_\-]{20}").unwrap(),
+            prefixes: &["glpat-"],
+            kind: SecretKind::GitLabPat,
+            label: "GitLab Personal Access Token",
+            severity: Severity::Critical,
+        },
+        // Cloudflare API Token
+        SecretPattern {
+            regex: Regex::new(r"cf_[A-Za-z0-9_\-]{37}").unwrap(),
+            prefixes: &["cf_"],
+            kind: SecretKind::CloudflareApiToken,
+            label: "Cloudflare API Token",
+            severity: Severity::Critical,
+        },
+        // Supabase Service Key
+        SecretPattern {
+            regex: Regex::new(r"sbp_[a-f0-9]{40}").unwrap(),
+            prefixes: &["sbp_"],
+            kind: SecretKind::SupabaseServiceKey,
+            label: "Supabase Service Key",
+            severity: Severity::Critical,
+        },
+        // GCP OAuth Access Token
+        SecretPattern {
+            regex: Regex::new(r"ya29\.[A-Za-z0-9_\-]{50,}").unwrap(),
+            prefixes: &["ya29."],
+            kind: SecretKind::GcpOAuthToken,
+            label: "GCP OAuth Access Token",
+            severity: Severity::Critical,
+        },
+        // Hashicorp Vault Token
+        SecretPattern {
+            regex: Regex::new(r"hvs\.[A-Za-z0-9_\-]{24,}").unwrap(),
+            prefixes: &["hvs."],
+            kind: SecretKind::HashicorpVaultToken,
+            label: "Hashicorp Vault Token",
+            severity: Severity::Critical,
+        },
+        // Doppler Token
+        SecretPattern {
+            regex: Regex::new(r"dp\.(?:st|sa|ct)\.[A-Za-z0-9_\-]{40,}").unwrap(),
+            prefixes: &["dp."],
+            kind: SecretKind::DopplerToken,
+            label: "Doppler Token",
+            severity: Severity::Critical,
+        },
+        // Vercel Token
+        SecretPattern {
+            regex: Regex::new(r"vercel_[A-Za-z0-9_\-]{24,}").unwrap(),
+            prefixes: &["vercel_"],
+            kind: SecretKind::VercelToken,
+            label: "Vercel Token",
+            severity: Severity::Critical,
+        },
+        // Databricks Token
+        SecretPattern {
+            regex: Regex::new(r"dapi[0-9a-f]{32}").unwrap(),
+            prefixes: &["dapi"],
+            kind: SecretKind::DatabricksToken,
+            label: "Databricks Token",
+            severity: Severity::Critical,
+        },
+        // Grafana API Key / Service Account
+        SecretPattern {
+            regex: Regex::new(r"glsa_[A-Za-z0-9]{32}_[A-Fa-f0-9]{8}").unwrap(),
+            prefixes: &["glsa_"],
+            kind: SecretKind::GrafanaApiKey,
+            label: "Grafana API Key",
+            severity: Severity::High,
+        },
+        // Pulumi Access Token
+        SecretPattern {
+            regex: Regex::new(r"pul-[A-Za-z0-9]{40}").unwrap(),
+            prefixes: &["pul-"],
+            kind: SecretKind::PulumiAccessToken,
+            label: "Pulumi Access Token",
+            severity: Severity::Critical,
         },
 
         // ── Keyword patterns: service-specific (4) ──────────────────────
