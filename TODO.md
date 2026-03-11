@@ -65,15 +65,15 @@
 - [x] **Popup has no loading state** — popup now shows "Scanning page..." indicator based on `lastScanTs` recency, and polls for updated findings every 2s while open
 - [ ] **Very long secrets overflow popup** — `popup.js:46-83` renders `full_match` without truncation; a 100KB+ match will break the popup layout
 - [ ] **No accessibility** — `popup.html` lacks ARIA labels, semantic landmarks, keyboard navigation, and screen reader support
-- [ ] **Clipboard "Copied!" shown even on failure** — `popup.js:63-68` shows success feedback before the `writeText` promise resolves; if clipboard access is denied, feedback is incorrect
+- [x] **Clipboard "Copied!" shown even on failure** — fixed in error handling hardening; `popup.js` copy button now awaits the `writeText` promise and shows "Failed" on rejection
 
 ## Error Handling
 
-- [ ] **`setTabData` silently fails on quota exceeded** — `service-worker.js:51` `chrome.storage.session.set()` has no `.catch()`. Default session storage quota is 10MB; if many tabs accumulate large findings (including raw `full_match` values), writes silently fail and findings are lost
-- [ ] **Badge API unhandled rejections** — `service-worker.js:36-37` `setBadgeText`/`setBadgeBackgroundColor` can throw if the tab is closed
-- [ ] **Clipboard `.catch()` missing** — `popup.js:63-66` `writeText` rejection is unhandled
-- [ ] **WASM init failure is not retried properly** — `service-worker.js:26` resets `wasmInitPromise` to null on failure, but concurrent callers can stampede on re-init (thundering herd)
-- [ ] **Missing null check in popup tab query** — `popup.js:2-3` assumes `chrome.tabs.query` returns a valid tab; if it returns empty, the popup silently does nothing with no feedback
+- [x] **`setTabData` silently fails on quota exceeded** — `setTabData` now catches storage errors, logs them, and attempts recovery by truncating findings to 50, then to 0 if still failing
+- [x] **Badge API unhandled rejections** — all 5 `setBadgeText`/`setBadgeBackgroundColor` call sites now have `.catch(() => {})` to handle closed-tab errors
+- [x] **Clipboard `.catch()` missing** — `popup.js` copy button now catches `writeText` rejection and shows "Failed" feedback instead of leaving the button unchanged
+- [x] **WASM init failure is not retried properly** — `initWasm` now keeps the failed promise cached for a 5-second cooldown before allowing retry, preventing thundering herd on concurrent callers
+- [x] **Missing null check in popup tab query** — popup now shows "Unable to access this tab." message instead of an infinite loading spinner when `chrome.tabs.query` returns empty
 
 ## Testing
 

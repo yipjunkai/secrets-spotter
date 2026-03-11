@@ -56,7 +56,8 @@ async function initWasm() {
       wasmReady = true;
       console.log(`Secrets Spotter WASM loaded. ${pattern_count()} patterns active.`);
     } catch (err) {
-      wasmInitPromise = null;
+      // Allow retry after cooldown, but prevent thundering herd
+      setTimeout(() => { wasmInitPromise = null; }, 5000);
       throw err;
     }
   })();
@@ -70,15 +71,15 @@ function updateBadge(tabId, count) {
     // Immediately show the count
     clearTimeout(badgeSettleTimers.get(tabId));
     badgeSettleTimers.delete(tabId);
-    chrome.action.setBadgeText({ text: String(count), tabId });
-    chrome.action.setBadgeBackgroundColor({ color: '#e74c3c', tabId });
+    chrome.action.setBadgeText({ text: String(count), tabId }).catch(() => {});
+    chrome.action.setBadgeBackgroundColor({ color: '#e74c3c', tabId }).catch(() => {});
   } else {
     // Delay clearing "..." so it doesn't flash away between scan chunks.
     // If no findings arrive within 3s of the last scan, clear the badge.
     if (badgeSettleTimers.has(tabId)) return;
     const timer = setTimeout(() => {
       badgeSettleTimers.delete(tabId);
-      chrome.action.setBadgeText({ text: '', tabId });
+      chrome.action.setBadgeText({ text: '', tabId }).catch(() => {});
     }, 3000);
     badgeSettleTimers.set(tabId, timer);
   }
@@ -95,7 +96,21 @@ async function getTabData(tabId) {
 }
 
 async function setTabData(tabId, data) {
-  await chrome.storage.session.set({ [tabKey(tabId)]: data });
+  try {
+    await chrome.storage.session.set({ [tabKey(tabId)]: data });
+  } catch (err) {
+    appendToLog(logEntry('service-worker', `setTabData failed (quota?): ${err.message}`, err.stack));
+    // Attempt recovery: truncate findings to reduce storage size
+    if (data.findings && data.findings.length > 50) {
+      data.findings = data.findings.slice(0, 50);
+      try {
+        await chrome.storage.session.set({ [tabKey(tabId)]: data });
+      } catch {
+        data.findings = [];
+        await chrome.storage.session.set({ [tabKey(tabId)]: data }).catch(() => {});
+      }
+    }
+  }
 }
 
 async function removeTabData(tabId) {
@@ -269,8 +284,8 @@ chrome.webNavigation?.onCommitted?.addListener((details) => {
     removeTabData(details.tabId);
     clearTimeout(badgeSettleTimers.get(details.tabId));
     badgeSettleTimers.delete(details.tabId);
-    chrome.action.setBadgeText({ text: '...', tabId: details.tabId });
-    chrome.action.setBadgeBackgroundColor({ color: '#888', tabId: details.tabId });
+    chrome.action.setBadgeText({ text: '...', tabId: details.tabId }).catch(() => {});
+    chrome.action.setBadgeBackgroundColor({ color: '#888', tabId: details.tabId }).catch(() => {});
   }
 });
 

@@ -1,6 +1,11 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) return;
+  if (!tab) {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('results').classList.remove('hidden');
+    document.getElementById('summary').textContent = 'Unable to access this tab.';
+    return;
+  }
 
   function base64UrlDecode(input) {
     const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
@@ -166,6 +171,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(f.full_match).then(() => {
           copyBtn.textContent = 'Copied!';
+          setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+        }).catch(() => {
+          copyBtn.textContent = 'Failed';
           setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
         });
       });
