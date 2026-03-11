@@ -62,33 +62,60 @@ impl SecretDetector {
                 continue;
             }
 
-            for caps in pattern.regex.captures_iter(text) {
-                let full = caps.get(0).unwrap();
-                if full.len() > MAX_MATCH_LEN {
-                    continue;
+            // Known-prefix patterns have no capture groups — use faster find_iter.
+            // Keyword/generic patterns use capture groups to extract the value.
+            if !pattern.prefixes.is_empty() {
+                for mat in pattern.regex.find_iter(text) {
+                    if mat.len() > MAX_MATCH_LEN {
+                        continue;
+                    }
+                    let matched_str = mat.as_str();
+
+                    if Self::is_false_positive(&pattern.kind, matched_str) {
+                        continue;
+                    }
+
+                    let redacted = Self::redact(matched_str);
+                    let matched = matched_str.to_string();
+
+                    findings.push(SecretFinding {
+                        kind: pattern.kind.clone(),
+                        label: pattern.label.to_string(),
+                        matched_text: redacted,
+                        full_match: matched,
+                        start: mat.start(),
+                        end: mat.end(),
+                        severity: pattern.severity.clone(),
+                    });
                 }
-                let matched_str = full.as_str();
+            } else {
+                for caps in pattern.regex.captures_iter(text) {
+                    let full = caps.get(0).unwrap();
+                    if full.len() > MAX_MATCH_LEN {
+                        continue;
+                    }
+                    let matched_str = full.as_str();
 
-                // Use capture group 1 (the value) if the pattern defines one,
-                // otherwise the full match IS the value (known-prefix patterns)
-                let value = caps.get(1).map(|m| m.as_str()).unwrap_or(matched_str);
+                    // Use capture group 1 (the value) for false-positive checks
+                    let value = caps.get(1).map(|m| m.as_str()).unwrap_or(matched_str);
 
-                if Self::is_false_positive(&pattern.kind, value) {
-                    continue;
+                    if Self::is_false_positive(&pattern.kind, value) {
+                        continue;
+                    }
+
+                    let redacted = Self::redact(matched_str);
+                    let matched = matched_str.to_string();
+
+                    findings.push(SecretFinding {
+                        kind: pattern.kind.clone(),
+                        label: pattern.label.to_string(),
+                        matched_text: redacted,
+                        full_match: matched,
+                        start: full.start(),
+                        end: full.end(),
+                        severity: pattern.severity.clone(),
+                    });
                 }
-
-                let redacted = Self::redact(matched_str);
-                let matched = matched_str.to_string();
-
-                findings.push(SecretFinding {
-                    kind: pattern.kind.clone(),
-                    label: pattern.label.to_string(),
-                    matched_text: redacted,
-                    full_match: matched,
-                    start: full.start(),
-                    end: full.end(),
-                    severity: pattern.severity.clone(),
-                });
             }
         }
 
