@@ -195,9 +195,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Deduplicate via Rust
           tabData.findings = merge_findings(tabData.findings, newFindings);
 
-          // scannedUrls stored as array since Set isn't JSON-serializable
-          if (message.url && !tabData.scannedUrls.includes(message.url)) {
-            tabData.scannedUrls.push(message.url);
+          // scannedUrls stored as array since Set isn't JSON-serializable;
+          // convert to Set for O(1) lookup, then spread back to array for storage
+          const urlSet = new Set(tabData.scannedUrls);
+          if (message.url && !urlSet.has(message.url)) {
+            urlSet.add(message.url);
+            tabData.scannedUrls = [...urlSet];
           }
 
           tabData.scanned = (tabData.scanned || 0) + 1;
