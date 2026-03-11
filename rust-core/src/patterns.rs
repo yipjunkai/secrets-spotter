@@ -144,7 +144,7 @@ lazy_static! {
         },
         // Discord Bot Token
         SecretPattern {
-            regex: Regex::new(r"[MN][A-Za-z0-9]{23,}\.[\w-]{6}\.[\w-]{27,}").unwrap(),
+            regex: Regex::new(r"[MN][A-Za-z0-9_-]{17,28}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,40}").unwrap(),
             prefixes: &[],
             kind: SecretKind::DiscordToken,
             label: "Discord Bot Token",
