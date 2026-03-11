@@ -1,6 +1,6 @@
 # Secrets Spotter
 
-A Chrome extension that scans web pages and network traffic for exposed secrets in real time. Uses a Rust core compiled to WebAssembly for high-performance pattern matching against 49 secret types.
+A Chrome extension that scans web pages and network traffic for exposed secrets in real time. Uses a Rust core compiled to WebAssembly for high-performance pattern matching against 50 secret types.
 
 ## Features
 
@@ -56,9 +56,9 @@ secrets-spotter/
 
 ## Detection Strategy
 
-Secrets Spotter uses a three-tier detection strategy (49 patterns total):
+Secrets Spotter uses a three-tier detection strategy (50 patterns total):
 
-### Known-prefix patterns (40)
+### Known-prefix patterns (41)
 
 Match by a fixed prefix or structure baked into the key itself — highest confidence.
 
@@ -76,6 +76,7 @@ Match by a fixed prefix or structure baked into the key itself — highest confi
 | Slack App-Level    | `xapp-`                                                        |
 | Google API Key     | `AIza`                                                         |
 | Stripe Secret      | `sk_(live\|test)_`                                             |
+| Stripe Publishable | `pk_(live\|test)_`                                             |
 | Stripe Restricted  | `rk_(live\|test)_`                                             |
 | Stripe Webhook     | `whsec_`                                                       |
 | Twilio             | `SK` + 32 hex chars                                            |

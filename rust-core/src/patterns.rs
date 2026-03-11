@@ -13,7 +13,6 @@ pub struct SecretPattern {
 
 lazy_static! {
     pub static ref PATTERNS: Vec<SecretPattern> = vec![
-        // ── Known-prefix patterns (40) ──────────────────────────────────
         // Match by a fixed prefix or structure baked into the key itself.
 
         // AWS Access Key ID
@@ -117,6 +116,14 @@ lazy_static! {
             kind: SecretKind::StripeKey,
             label: "Stripe Secret Key",
             severity: Severity::Critical,
+        },
+        // Stripe Publishable Key
+        SecretPattern {
+            regex: Regex::new(r"pk_(?:live|test)_[A-Za-z0-9]{24,}").unwrap(),
+            prefixes: &["pk_live_", "pk_test_"],
+            kind: SecretKind::StripePublishableKey,
+            label: "Stripe Publishable Key",
+            severity: Severity::Low,
         },
         // Stripe Restricted Key
         SecretPattern {

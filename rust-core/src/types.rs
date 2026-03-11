@@ -17,6 +17,7 @@ pub enum SecretKind {
     GoogleApiKey,
     HerokuApiKey,
     StripeKey,
+    StripePublishableKey,
     StripeRestrictedKey,
     StripeWebhookSecret,
     TwilioKey,
