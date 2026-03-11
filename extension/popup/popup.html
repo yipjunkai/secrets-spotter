@@ -7,11 +7,14 @@
 <body>
   <div id="app">
     <h1>Secrets Spotter</h1>
-    <div id="scan-indicator" class="hidden">Scanning page<span class="dots"></span></div>
-    <div id="status"></div>
-    <div id="summary"></div>
-    <ul id="findings-list"></ul>
-    <div id="no-findings" class="hidden">No secrets detected on this page.</div>
+    <div id="loading">Loading findings<span class="dots"></span></div>
+    <div id="results" class="hidden">
+      <div id="scan-indicator" class="hidden">Scanning page<span class="dots"></span></div>
+      <div id="status"></div>
+      <div id="summary"></div>
+      <ul id="findings-list"></ul>
+      <div id="no-findings" class="hidden">No secrets detected on this page.</div>
+    </div>
     <details id="debug-section">
       <summary>Debug Log</summary>
       <div id="debug-log-content"></div>

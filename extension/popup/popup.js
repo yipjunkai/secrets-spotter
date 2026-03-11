@@ -68,11 +68,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let lastFindingsKey = '';
 
+  let firstRender = true;
+
   function renderFindings(data) {
     if (chrome.runtime.lastError) {
       console.warn('Secrets Spotter:', chrome.runtime.lastError.message);
       return;
     }
+
+    // Swap loading indicator for results on first response
+    if (firstRender) {
+      firstRender = false;
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('results').classList.remove('hidden');
+    }
+
     const findings = data?.findings || [];
     const statusEl = document.getElementById('status');
     const scanIndicator = document.getElementById('scan-indicator');

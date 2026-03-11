@@ -63,11 +63,25 @@ async function initWasm() {
   return wasmInitPromise;
 }
 
+const badgeSettleTimers = new Map();
+
 function updateBadge(tabId, count) {
-  const text = count > 0 ? String(count) : '';
-  const color = count > 0 ? '#e74c3c' : '#4CAF50';
-  chrome.action.setBadgeText({ text, tabId });
-  chrome.action.setBadgeBackgroundColor({ color, tabId });
+  if (count > 0) {
+    // Immediately show the count
+    clearTimeout(badgeSettleTimers.get(tabId));
+    badgeSettleTimers.delete(tabId);
+    chrome.action.setBadgeText({ text: String(count), tabId });
+    chrome.action.setBadgeBackgroundColor({ color: '#e74c3c', tabId });
+  } else {
+    // Delay clearing "..." so it doesn't flash away between scan chunks.
+    // If no findings arrive within 3s of the last scan, clear the badge.
+    if (badgeSettleTimers.has(tabId)) return;
+    const timer = setTimeout(() => {
+      badgeSettleTimers.delete(tabId);
+      chrome.action.setBadgeText({ text: '', tabId });
+    }, 3000);
+    badgeSettleTimers.set(tabId, timer);
+  }
 }
 
 function tabKey(tabId) {
@@ -250,15 +264,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Reset findings on navigation
+// Reset findings on navigation — show loading badge until first scan completes
 chrome.webNavigation?.onCommitted?.addListener((details) => {
   if (details.frameId === 0) {
     removeTabData(details.tabId);
-    updateBadge(details.tabId, 0);
+    clearTimeout(badgeSettleTimers.get(details.tabId));
+    badgeSettleTimers.delete(details.tabId);
+    chrome.action.setBadgeText({ text: '...', tabId: details.tabId });
+    chrome.action.setBadgeBackgroundColor({ color: '#888', tabId: details.tabId });
   }
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   removeTabData(tabId);
   tabLocks.delete(tabId);
+  clearTimeout(badgeSettleTimers.get(tabId));
+  badgeSettleTimers.delete(tabId);
 });
