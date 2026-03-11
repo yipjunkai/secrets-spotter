@@ -24,8 +24,9 @@
   });
 
   let scanTimeout = null;
-  // Hash-based cache to skip already-scanned text
+  // Hash-based cache to skip already-scanned text (capped to prevent unbounded growth on SPAs)
   const scannedHashes = new Set();
+  const MAX_HASHES = 500;
   let observer = null;
 
   async function hashText(text) {
@@ -38,11 +39,7 @@
   }
 
   function getPageSource() {
-    const clone = document.documentElement.cloneNode(true);
-    clone.querySelectorAll('.secrets-spotter-highlight').forEach((el) => {
-      el.replaceWith(document.createTextNode(el.textContent));
-    });
-    return clone.outerHTML || '';
+    return document.documentElement.outerHTML || '';
   }
 
   function isContextValid() {
@@ -59,6 +56,9 @@
 
     const hash = await hashText(text);
     if (scannedHashes.has(hash)) return;
+    if (scannedHashes.size >= MAX_HASHES) {
+      scannedHashes.clear();
+    }
     scannedHashes.add(hash);
 
     try {
@@ -142,33 +142,29 @@
     window.addEventListener('load', () => scanPage());
   }
 
-  let pendingNodes = [];
+  let pendingTexts = [];
 
   observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) {
-          if (pendingNodes.length < 1000) {
-            pendingNodes.push(node);
+          if (pendingTexts.length < 1000) {
+            const text = node.textContent;
+            if (text && text.length >= 10) {
+              pendingTexts.push(text);
+            }
           }
         }
       }
     }
-    if (pendingNodes.length === 0) return;
+    if (pendingTexts.length === 0) return;
 
     clearTimeout(scanTimeout);
     scanTimeout = setTimeout(() => {
-      const texts = [];
-      for (const node of pendingNodes) {
-        const text = node.textContent;
-        if (text && text.length >= 10) {
-          texts.push(text);
-        }
-      }
-      pendingNodes = [];
+      const combined = pendingTexts.join('\n');
+      pendingTexts = [];
 
-      if (texts.length > 0) {
-        const combined = texts.join('\n');
+      if (combined.length > 0) {
         sendForScan(combined, window.location.href, 'dom');
       }
     }, 2000);
@@ -186,7 +182,7 @@
       clearInterval(contextCheckInterval);
       if (observer) observer.disconnect();
       clearTimeout(scanTimeout);
-      pendingNodes = [];
+      pendingTexts = [];
       // Signal MAIN world interceptor to clean up too
       window.dispatchEvent(new Event('__SECRETS_SPOTTER_CLEANUP__'));
     }
@@ -198,6 +194,6 @@
       observer.disconnect();
     }
     clearTimeout(scanTimeout);
-    pendingNodes = [];
+    pendingTexts = [];
   });
 })();
