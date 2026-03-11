@@ -38,9 +38,7 @@
     }, window.location.origin);
   }
 
-  // =========================================================================
-  // 1. Patch fetch() — request + response headers & body
-  // =========================================================================
+  // Patch fetch() — request + response headers & body
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
     // Scan outgoing request headers and body
@@ -100,9 +98,7 @@
     return response;
   };
 
-  // =========================================================================
-  // 2. Patch XMLHttpRequest — body + headers
-  // =========================================================================
+  // Patch XMLHttpRequest — body + headers
   const XHROpen = XMLHttpRequest.prototype.open;
   const XHRSend = XMLHttpRequest.prototype.send;
 
@@ -145,9 +141,7 @@
     return XHRSend.apply(this, args);
   };
 
-  // =========================================================================
-  // 3. Patch WebSocket — batched string message interception
-  // =========================================================================
+  // Patch WebSocket — batched string message interception
   const OriginalWebSocket = window.WebSocket;
   if (OriginalWebSocket) {
     window.WebSocket = function (url, protocols) {
@@ -215,9 +209,7 @@
     window.WebSocket.CLOSED = OriginalWebSocket.CLOSED;
   }
 
-  // =========================================================================
-  // 4. Patch EventSource (SSE) — batched message interception
-  // =========================================================================
+  // Patch EventSource (SSE) — batched message interception
   const OriginalEventSource = window.EventSource;
   if (OriginalEventSource) {
     window.EventSource = function (url, config) {
@@ -315,9 +307,7 @@
     window.EventSource.CLOSED = OriginalEventSource.CLOSED;
   }
 
-  // =========================================================================
-  // 5. Scan external <script src> and <link stylesheet> files
-  // =========================================================================
+  // Scan external <script src> and <link stylesheet> files
   function scanExternalScripts() {
     const scripts = document.querySelectorAll('script[src]');
     const seen = new Set();
@@ -366,9 +356,7 @@
     }
   }
 
-  // =========================================================================
-  // 6. Scan cookies
-  // =========================================================================
+  // Scan cookies
   function scanCookies() {
     const cookies = document.cookie;
     if (cookies && cookies.length >= 10) {
@@ -389,9 +377,7 @@
     }, { once: true });
   }
 
-  // =========================================================================
-  // 7. SPA navigation detection — pushState, replaceState, popstate, hashchange
-  // =========================================================================
+  // SPA navigation detection — pushState, replaceState, popstate, hashchange
   let lastUrl = window.location.href;
 
   function onNavigation() {
