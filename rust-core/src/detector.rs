@@ -27,6 +27,20 @@ lazy_static! {
         r"\.(pdf|html?|js|css|png|jpg|jpeg|gif|svg|woff2?|ttf|json|xml|ya?ml|txt|md|csv|zip|gz|tar|exe|dmg|pkg|deb|rpm|sh|bat|py|rb|go|rs|java|ts|tsx|jsx|vue|php)\b"
     ).unwrap();
 
+    // Value looks like a code identifier (variable, class, or constant name).
+    // Matches camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case,
+    // and dot-notation property paths — none of which are real secrets.
+    static ref CODE_IDENTIFIER: Regex = Regex::new(
+        concat!(
+            r"^_*[a-z][a-zA-Z0-9]*([A-Z][a-z0-9]+)+[a-zA-Z0-9]*$",  // camelCase (2+ humps), optional _ prefix
+            r"|^_*[A-Z][a-z]+([A-Z][a-z0-9]+)+$",                     // PascalCase (2+ humps), optional _ prefix
+            r"|^_*[a-z]+(_[a-z0-9]+){2,}_*$",                         // snake_case (3+ segments), optional _/__ prefix/suffix
+            r"|^_*[A-Z]+(_[A-Z0-9]+){2,}$",                           // SCREAMING_SNAKE (3+ segments), optional _ prefix
+            r"|^[a-zA-Z][a-zA-Z0-9]*(-[a-zA-Z0-9]+){2,}$",           // kebab-case (3+ segments)
+            r"|^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){2,}$"   // dot-notation (3+ segments)
+        )
+    ).unwrap();
+
     static ref REGEX_SET: RegexSet = RegexSet::new(
         PATTERNS.iter().map(|p| p.regex.as_str())
     ).unwrap();
@@ -93,6 +107,10 @@ impl SecretDetector {
         URL_OR_PATH.is_match(value) || HAS_FILE_EXT.is_match(value)
     }
 
+    fn is_code_identifier(value: &str) -> bool {
+        CODE_IDENTIFIER.is_match(value)
+    }
+
     fn is_false_positive(kind: &SecretKind, matched: &str) -> bool {
         match kind {
             SecretKind::GenericSecret | SecretKind::GenericApiKey | SecretKind::GenericToken => {
@@ -107,12 +125,19 @@ impl SecretDetector {
                 if PLAIN_WORDS.is_match(value) {
                     return true;
                 }
+                if Self::is_code_identifier(value) {
+                    return true;
+                }
                 false
             }
             SecretKind::HighEntropyString => {
                 let value = Self::extract_value(matched);
 
                 if Self::is_url_or_path(value) {
+                    return true;
+                }
+                // Reject code identifiers before computing entropy
+                if Self::is_code_identifier(value) {
                     return true;
                 }
                 // Must have high Shannon entropy (>3.5 bits per char)
@@ -127,6 +152,18 @@ impl SecretDetector {
                 let has_digit = value.chars().any(|c| c.is_ascii_digit());
                 let alnum_classes = has_upper as u8 + has_lower as u8 + has_digit as u8;
                 if alnum_classes < 2 {
+                    return true;
+                }
+                false
+            }
+            SecretKind::BearerToken => {
+                let value = Self::extract_value(matched);
+                // Strip "Bearer " prefix to check just the token value
+                let token = value
+                    .strip_prefix("Bearer ")
+                    .or_else(|| value.strip_prefix("bearer "))
+                    .unwrap_or(value);
+                if Self::is_code_identifier(token) {
                     return true;
                 }
                 false
