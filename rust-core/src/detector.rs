@@ -62,14 +62,18 @@ impl SecretDetector {
                 continue;
             }
 
-            for mat in pattern.regex.find_iter(text) {
-                if mat.len() > MAX_MATCH_LEN {
+            for caps in pattern.regex.captures_iter(text) {
+                let full = caps.get(0).unwrap();
+                if full.len() > MAX_MATCH_LEN {
                     continue;
                 }
-                let matched_str = mat.as_str();
+                let matched_str = full.as_str();
 
-                // For generic patterns, filter out false positives
-                if Self::is_false_positive(&pattern.kind, matched_str) {
+                // Use capture group 1 (the value) if the pattern defines one,
+                // otherwise the full match IS the value (known-prefix patterns)
+                let value = caps.get(1).map(|m| m.as_str()).unwrap_or(matched_str);
+
+                if Self::is_false_positive(&pattern.kind, value) {
                     continue;
                 }
 
@@ -81,8 +85,8 @@ impl SecretDetector {
                     label: pattern.label.to_string(),
                     matched_text: redacted,
                     full_match: matched,
-                    start: mat.start(),
-                    end: mat.end(),
+                    start: full.start(),
+                    end: full.end(),
                     severity: pattern.severity.clone(),
                 });
             }
@@ -90,18 +94,6 @@ impl SecretDetector {
 
         Self::deduplicate(&mut findings);
         findings
-    }
-
-    fn extract_value(matched: &str) -> &str {
-        // Split on the first `=` or `:` (the assignment operator), not the last,
-        // so base64 padding (`==`) in the value is preserved.
-        let after_sep = matched
-            .find(['=', ':'])
-            .map(|i| &matched[i + 1..])
-            .unwrap_or(matched);
-        after_sep
-            .trim()
-            .trim_matches(|c| c == '\'' || c == '"' || c == ' ')
     }
 
     fn is_url_or_path(value: &str) -> bool {
@@ -112,11 +104,9 @@ impl SecretDetector {
         CODE_IDENTIFIER.is_match(value)
     }
 
-    fn is_false_positive(kind: &SecretKind, matched: &str) -> bool {
+    fn is_false_positive(kind: &SecretKind, value: &str) -> bool {
         match kind {
             SecretKind::GenericSecret | SecretKind::GenericApiKey | SecretKind::GenericToken => {
-                let value = Self::extract_value(matched);
-
                 if Self::is_url_or_path(value) {
                     return true;
                 }
@@ -132,8 +122,6 @@ impl SecretDetector {
                 false
             }
             SecretKind::HighEntropyString => {
-                let value = Self::extract_value(matched);
-
                 if Self::is_url_or_path(value) {
                     return true;
                 }
@@ -164,7 +152,6 @@ impl SecretDetector {
                 false
             }
             SecretKind::BearerToken => {
-                let value = Self::extract_value(matched);
                 // Strip "Bearer " prefix to check just the token value
                 let token = value
                     .strip_prefix("Bearer ")
