@@ -1,11 +1,11 @@
 # Secrets Spotter
 
-A Chrome extension that scans web pages and network traffic for exposed secrets in real time. Uses a Rust core compiled to WebAssembly for high-performance pattern matching against 37 secret types.
+A Chrome extension that scans web pages and network traffic for exposed secrets in real time. Uses a Rust core compiled to WebAssembly for high-performance pattern matching against 49 secret types.
 
 ## Features
 
 - **Real-time scanning** of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
-- **37 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, and more
+- **Detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and more
 - **False-positive filtering** using Shannon entropy, placeholder detection, code identifier rejection, and context analysis
 - **JWT decoder in popup** — expandable header/payload JSON view for detected JWTs
 - **SPA-aware** — re-scans on pushState, replaceState, popstate, and hashchange navigations
@@ -18,7 +18,7 @@ Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
             → content.js extracts DOM text + structured attributes
             → Text truncated to 2 MB and deduplicated by SHA-256 hash
             → Background service worker runs WASM scanner
-            → Rust matches against 37 regex patterns (RegexSet + memchr pre-filter)
+            → Rust matches against known-prefix and keyword patterns (RegexSet + memchr pre-filter)
             → False positives filtered (entropy, placeholders, code identifiers, English words)
             → Findings deduplicated in single O(n) pass, merged across scan batches
             → Findings shown in popup (JWTs include a decoder view)
@@ -34,7 +34,7 @@ secrets-spotter/
 │   └── src/
 │       ├── lib.rs           # WASM entry point (scan_text, pattern_count)
 │       ├── detector.rs      # Detection engine + false-positive filtering
-│       ├── patterns.rs      # 37 secret regex patterns
+│       ├── patterns.rs      # secret regex patterns
 │       ├── types.rs         # SecretKind enum, Severity, SecretFinding
 │       ├── filter.rs        # URL/content filtering (skip CDNs, media, etc.)
 │       ├── cookies.rs       # Cookie parsing utility
@@ -56,41 +56,53 @@ secrets-spotter/
 
 ## Detection Strategy
 
-Secrets Spotter uses a three-tier detection strategy (37 patterns total):
+Secrets Spotter uses a three-tier detection strategy (49 patterns total):
 
-### Known-prefix patterns (28)
+### Known-prefix patterns (40)
 
 Match by a fixed prefix or structure baked into the key itself — highest confidence.
 
-| Service            | Prefix/Structure                |
-| ------------------ | ------------------------------- |
-| AWS Access Key ID  | `AKIA...`                       |
-| AWS Temp Key (STS) | `ASIA...`                       |
-| GitHub PAT         | `ghp_` / `github_pat_`          |
-| GitHub OAuth       | `gho_`                          |
-| GitHub App         | `ghu_` / `ghs_` / `ghr_`        |
-| Private Key (PEM)  | `-----BEGIN...PRIVATE KEY-----` |
-| Password in URL    | `protocol://user:pass@host`     |
-| JWT                | `eyJ...eyJ...`                  |
-| Slack              | `xox[bpors]-`                   |
-| Slack App-Level    | `xapp-`                         |
-| Google API Key     | `AIza`                          |
-| Stripe Secret      | `sk_(live\|test)_`              |
-| Stripe Restricted  | `rk_(live\|test)_`              |
-| Twilio             | `SK` + 32 hex chars             |
-| SendGrid           | `SG.`                           |
-| Discord Bot        | `[MN]...(dot-separated)`        |
-| Mailgun            | `key-`                          |
-| npm                | `npm_`                          |
-| PyPI               | `pypi-`                         |
-| Shopify            | `shp(at\|ss\|ca\|pa)_`          |
-| Square             | `sq0atp-`                       |
-| Anthropic          | `sk-ant-api03-`                 |
-| OpenAI (legacy)    | `sk-...T3BlbkFJ...`             |
-| OpenAI (new)       | `sk-proj-` / `sk-svcacct-`      |
-| DigitalOcean       | `dop_v1_`                       |
-| Linear             | `lin_api_`                      |
-| PostHog            | `ph[cx]_`                       |
+| Service            | Prefix/Structure                                               |
+| ------------------ | -------------------------------------------------------------- |
+| AWS Access Key ID  | `AKIA...`                                                      |
+| AWS Temp Key (STS) | `ASIA...`                                                      |
+| GitHub PAT         | `ghp_` / `github_pat_`                                         |
+| GitHub OAuth       | `gho_`                                                         |
+| GitHub App         | `ghu_` / `ghs_` / `ghr_`                                       |
+| Private Key (PEM)  | `-----BEGIN...PRIVATE KEY-----`                                |
+| Password in URL    | `protocol://user:pass@host` (incl. redis, mongodb, amqp, smtp) |
+| JWT                | `eyJ...eyJ...`                                                 |
+| Slack              | `xox[bpors]-`                                                  |
+| Slack App-Level    | `xapp-`                                                        |
+| Google API Key     | `AIza`                                                         |
+| Stripe Secret      | `sk_(live\|test)_`                                             |
+| Stripe Restricted  | `rk_(live\|test)_`                                             |
+| Stripe Webhook     | `whsec_`                                                       |
+| Twilio             | `SK` + 32 hex chars                                            |
+| SendGrid           | `SG.`                                                          |
+| Discord Bot        | `[MN]...(dot-separated base64)`                                |
+| Mailgun            | `key-`                                                         |
+| npm                | `npm_`                                                         |
+| PyPI               | `pypi-`                                                        |
+| Shopify            | `shp(at\|ss\|ca\|pa)_`                                         |
+| Square             | `sq0atp-`                                                      |
+| Anthropic          | `sk-ant-api03-`                                                |
+| OpenAI (legacy)    | `sk-...T3BlbkFJ...`                                            |
+| OpenAI (new)       | `sk-proj-` / `sk-svcacct-`                                     |
+| DigitalOcean       | `dop_v1_`                                                      |
+| Linear             | `lin_api_`                                                     |
+| PostHog            | `ph[cx]_`                                                      |
+| GitLab PAT         | `glpat-`                                                       |
+| Cloudflare API     | `cf_`                                                          |
+| Supabase Service   | `sbp_`                                                         |
+| GCP OAuth          | `ya29.`                                                        |
+| Hashicorp Vault    | `hvs.`                                                         |
+| Doppler            | `dp.(st\|sa\|ct).`                                             |
+| Vercel             | `vercel_`                                                      |
+| Databricks         | `dapi`                                                         |
+| Grafana            | `glsa_`                                                        |
+| Pulumi             | `pul-`                                                         |
+| Hugging Face       | `hf_`                                                          |
 
 ### Keyword patterns: service-specific (4)
 

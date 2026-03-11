@@ -18,6 +18,7 @@ pub enum SecretKind {
     HerokuApiKey,
     StripeKey,
     StripeRestrictedKey,
+    StripeWebhookSecret,
     TwilioKey,
     SendGridKey,
     BearerToken,
@@ -45,6 +46,7 @@ pub enum SecretKind {
     DatabricksToken,
     GrafanaApiKey,
     PulumiAccessToken,
+    HuggingFaceToken,
     HighEntropyString,
     GenericSecret,
 }

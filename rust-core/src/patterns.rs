@@ -13,7 +13,7 @@ pub struct SecretPattern {
 
 lazy_static! {
     pub static ref PATTERNS: Vec<SecretPattern> = vec![
-        // ── Known-prefix patterns (38) ──────────────────────────────────
+        // ── Known-prefix patterns (40) ──────────────────────────────────
         // Match by a fixed prefix or structure baked into the key itself.
 
         // AWS Access Key ID
@@ -125,6 +125,14 @@ lazy_static! {
             kind: SecretKind::StripeRestrictedKey,
             label: "Stripe Restricted Key",
             severity: Severity::High,
+        },
+        // Stripe Webhook Secret
+        SecretPattern {
+            regex: Regex::new(r"whsec_[A-Za-z0-9]{32,}").unwrap(),
+            prefixes: &["whsec_"],
+            kind: SecretKind::StripeWebhookSecret,
+            label: "Stripe Webhook Secret",
+            severity: Severity::Critical,
         },
         // Twilio API Key
         SecretPattern {
@@ -316,6 +324,14 @@ lazy_static! {
             prefixes: &["pul-"],
             kind: SecretKind::PulumiAccessToken,
             label: "Pulumi Access Token",
+            severity: Severity::Critical,
+        },
+        // Hugging Face Access Token
+        SecretPattern {
+            regex: Regex::new(r"hf_[A-Za-z0-9]{36,}").unwrap(),
+            prefixes: &["hf_"],
+            kind: SecretKind::HuggingFaceToken,
+            label: "Hugging Face Access Token",
             severity: Severity::Critical,
         },
 
