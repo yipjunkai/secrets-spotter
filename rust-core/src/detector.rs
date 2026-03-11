@@ -66,14 +66,15 @@ impl SecretDetector {
                 if mat.len() > MAX_MATCH_LEN {
                     continue;
                 }
-                let matched = mat.as_str().to_string();
+                let matched_str = mat.as_str();
 
                 // For generic patterns, filter out false positives
-                if Self::is_false_positive(&pattern.kind, &matched) {
+                if Self::is_false_positive(&pattern.kind, matched_str) {
                     continue;
                 }
 
-                let redacted = Self::redact(&matched);
+                let redacted = Self::redact(matched_str);
+                let matched = matched_str.to_string();
 
                 findings.push(SecretFinding {
                     kind: pattern.kind.clone(),
@@ -147,9 +148,15 @@ impl SecretDetector {
                 // Must contain at least 2 of: uppercase, lowercase, digits
                 // (symbols/non-ASCII alone don't count toward the threshold to avoid
                 // false positives like CSS hashes with only lowercase + symbols)
-                let has_upper = value.chars().any(|c| c.is_ascii_uppercase());
-                let has_lower = value.chars().any(|c| c.is_ascii_lowercase());
-                let has_digit = value.chars().any(|c| c.is_ascii_digit());
+                let (mut has_upper, mut has_lower, mut has_digit) = (false, false, false);
+                for c in value.chars() {
+                    has_upper |= c.is_ascii_uppercase();
+                    has_lower |= c.is_ascii_lowercase();
+                    has_digit |= c.is_ascii_digit();
+                    if has_upper as u8 + has_lower as u8 + has_digit as u8 >= 2 {
+                        break;
+                    }
+                }
                 let alnum_classes = has_upper as u8 + has_lower as u8 + has_digit as u8;
                 if alnum_classes < 2 {
                     return true;
@@ -214,21 +221,32 @@ impl SecretDetector {
     }
 
     fn deduplicate(findings: &mut Vec<SecretFinding>) {
+        if findings.len() <= 1 {
+            return;
+        }
         findings.sort_by(|a, b| a.start.cmp(&b.start).then(a.severity.cmp(&b.severity)));
 
-        let mut i = 0;
-        while i + 1 < findings.len() {
-            if findings[i + 1].start < findings[i].end {
+        let mut kept: Vec<SecretFinding> = Vec::with_capacity(findings.len());
+        let mut drain = findings.drain(..);
+
+        if let Some(first) = drain.next() {
+            kept.push(first);
+        }
+
+        for f in drain {
+            let last = kept.last().unwrap();
+            if f.start < last.end {
                 // Overlapping — keep the higher severity (lower ordinal)
-                if findings[i + 1].severity < findings[i].severity {
-                    findings.remove(i);
-                } else {
-                    findings.remove(i + 1);
+                if f.severity < last.severity {
+                    *kept.last_mut().unwrap() = f;
                 }
+                // else: discard f, keep current last
             } else {
-                i += 1;
+                kept.push(f);
             }
         }
+
+        *findings = kept;
     }
 
     /// Merge existing findings with new ones, deduplicating by full_match value.
