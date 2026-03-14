@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Secrets Spotter - API Key & Leak Detector",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Detects exposed API keys, tokens, passwords, and secrets in web pages and network traffic. Scans DOM, fetch, XHR, WebSocket, and cookies in real time.",
   "permissions": ["activeTab", "storage", "webNavigation"],
   "host_permissions": ["<all_urls>"],
@@ -37,8 +37,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "wasm/secrets_spotter_core_bg.wasm",
-        "wasm/secrets_spotter_core.js"
+        "wasm/secrets_spotter_wasm_bg.wasm",
+        "wasm/secrets_spotter_wasm.js"
       ],
       "matches": ["<all_urls>"]
     }

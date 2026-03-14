@@ -5,7 +5,7 @@ import init, {
   parse_cookies,
   format_attributes,
   merge_findings,
-} from '../wasm/secrets_spotter_core.js';
+} from '../wasm/secrets_spotter_wasm.js';
 
 let wasmReady = false;
 let wasmInitPromise = null;
@@ -51,7 +51,7 @@ async function initWasm() {
   if (wasmInitPromise) return wasmInitPromise;
   wasmInitPromise = (async () => {
     try {
-      const wasmUrl = chrome.runtime.getURL('wasm/secrets_spotter_core_bg.wasm');
+      const wasmUrl = chrome.runtime.getURL('wasm/secrets_spotter_wasm_bg.wasm');
       await init(wasmUrl);
       wasmReady = true;
       console.log(`Secrets Spotter WASM loaded. ${pattern_count()} patterns active.`);

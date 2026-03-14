@@ -1,0 +1,19 @@
+[package]
+name = "secrets-spotter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CLI tool for detecting secrets in files and directories"
+
+[[bin]]
+name = "secrets-spotter"
+path = "src/main.rs"
+
+[dependencies]
+secrets-spotter-core = { path = "../core" }
+clap = { version = "4", features = ["derive"] }
+ignore = "0.4"
+anyhow = "1"
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+colored = "2"
