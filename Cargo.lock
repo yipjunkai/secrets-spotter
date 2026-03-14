@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "secrets-spotter"
-version = "1.0.4"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "secrets-spotter-core"
-version = "1.0.4"
+version = "1.1.0"
 dependencies = [
  "lazy_static",
  "memchr",
@@ -355,7 +355,7 @@ dependencies = [
 
 [[package]]
 name = "secrets-spotter-wasm"
-version = "1.0.4"
+version = "1.1.0"
 dependencies = [
  "console_error_panic_hook",
  "secrets-spotter-core",

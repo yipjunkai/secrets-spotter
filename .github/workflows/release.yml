@@ -75,14 +75,14 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Install just
+        uses: extractions/setup-just@v2
+
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.4.0
 
       - name: Build WASM
-        run: wasm-pack build crates/wasm --target web --out-dir ../../extension/wasm --release
-
-      - name: Clean wasm-pack artifacts
-        run: rm -f extension/wasm/.gitignore extension/wasm/package.json extension/wasm/*.d.ts
+        run: just build-wasm
 
       - name: Copy licenses and README
         run: cp LICENSE-APACHE LICENSE-MIT README.md extension/
@@ -115,7 +115,7 @@ jobs:
         id: cargo_version
         shell: bash
         run: |
-          VERSION=$(grep '^version' crates/core/Cargo.toml | head -1 | cut -d '"' -f 2)
+          VERSION=$(sed -n '/\[workspace\.package\]/,/^\[/{ s/^version *= *"\(.*\)"/\1/p }' Cargo.toml)
           echo "version=v$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 

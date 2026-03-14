@@ -39,7 +39,7 @@ secrets-spotter --quiet .
 
 ### CLI Options
 
-```
+```text
 secrets-spotter [OPTIONS] [PATH...]
 
 ARGUMENTS:
@@ -82,7 +82,7 @@ Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
 
 ### Extension Install
 
-1. Run `./scripts/build.sh`
+1. Run `just build`
 2. Open `chrome://extensions/`
 3. Enable **Developer mode**
 4. Click **Load unpacked** → select the `extension/` folder
@@ -131,9 +131,7 @@ secrets-spotter/
 │   │   └── content.js          # DOM scanning (ISOLATED world)
 │   ├── popup/
 │   └── wasm/                   # Compiled WASM output (build artifacts)
-├── scripts/
-│   ├── build.sh                # Build CLI + WASM
-│   └── clean.sh                # Clean all build artifacts
+├── justfile                    # Build, test, clean recipes
 ```
 
 ## Detection Strategy
@@ -217,19 +215,32 @@ Broad keyword match (`key`, `token`, `secret`, `password`, etc.) with Shannon en
 ### Prerequisites
 
 - [Rust](https://rustup.rs/)
+- [just](https://github.com/casey/just) (command runner)
 - [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/) (for extension builds)
 
 ### Build
 
 ```bash
 # Build everything (CLI + WASM extension)
-./scripts/build.sh
+just build
 
 # Build CLI only
-cargo build --release -p secrets-spotter
+just build-cli
 
 # Build WASM only
-wasm-pack build crates/wasm --target web --out-dir ../../extension/wasm --release
+just build-wasm
+
+# Run tests
+just test
+
+# Check formatting and lints
+just lint
+
+# Auto-format and apply lint fixes
+just format
+
+# Clean all build artifacts
+just clean
 ```
 
 ## License

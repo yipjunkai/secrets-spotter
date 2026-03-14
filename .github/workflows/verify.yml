@@ -36,12 +36,10 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Run clippy (native)
-        run: cargo clippy -p secrets-spotter-core -p secrets-spotter -- -D warnings
-      - name: Run clippy (wasm)
-        run: cargo clippy -p secrets-spotter-wasm --target wasm32-unknown-unknown -- -D warnings
+      - name: Install just
+        uses: extractions/setup-just@v2
+      - name: Check formatting and lint
+        run: just lint
 
   build:
     name: Build
@@ -55,12 +53,12 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+      - name: Install just
+        uses: extractions/setup-just@v2
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.4.0
-      - name: Build CLI
-        run: cargo build --release -p secrets-spotter
-      - name: Build WASM
-        run: wasm-pack build crates/wasm --target web --out-dir ../../extension/wasm --release
+      - name: Build
+        run: just build
 
   test:
     name: Run Tests
@@ -72,5 +70,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+      - name: Install just
+        uses: extractions/setup-just@v2
       - name: Run tests
-        run: cargo test --workspace
+        run: just test
