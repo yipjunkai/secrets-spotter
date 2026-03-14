@@ -1,7 +1,8 @@
 wasm-out := "extension/wasm"
 
-# Build everything (CLI + WASM extension)
-build: build-cli build-wasm
+# Build everything (CLI + WASM in parallel)
+build:
+    just build-cli & just build-wasm & wait
 
 # Build CLI binary
 build-cli:
@@ -16,7 +17,7 @@ build-wasm:
 test:
     cargo test --workspace
 
-# Check formatting and lints (native + wasm)
+# Check formatting and lints
 lint:
     cargo fmt --all -- --check
     cargo clippy -p secrets-spotter-core -p secrets-spotter -- -D warnings

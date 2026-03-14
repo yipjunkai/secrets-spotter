@@ -35,10 +35,8 @@ pub fn format_attributes(pairs_json: &str) -> String {
 
 #[wasm_bindgen]
 pub fn merge_findings(existing: JsValue, new_findings: JsValue) -> JsValue {
-    let existing: Vec<SecretFinding> =
-        serde_wasm_bindgen::from_value(existing).unwrap_or_default();
-    let new: Vec<SecretFinding> =
-        serde_wasm_bindgen::from_value(new_findings).unwrap_or_default();
+    let existing: Vec<SecretFinding> = serde_wasm_bindgen::from_value(existing).unwrap_or_default();
+    let new: Vec<SecretFinding> = serde_wasm_bindgen::from_value(new_findings).unwrap_or_default();
     let merged = secrets_spotter_core::merge_findings(existing, new);
     serde_wasm_bindgen::to_value(&merged).unwrap()
 }

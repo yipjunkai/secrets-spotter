@@ -13,7 +13,10 @@ pub fn format_attributes(pairs_json: &str) -> String {
         Err(_) => return String::new(),
     };
 
-    let as_tuples: Vec<(&str, &str)> = pairs.iter().map(|p| (p.name.as_str(), p.value.as_str())).collect();
+    let as_tuples: Vec<(&str, &str)> = pairs
+        .iter()
+        .map(|p| (p.name.as_str(), p.value.as_str()))
+        .collect();
     format_attributes_from_pairs(&as_tuples)
 }
 

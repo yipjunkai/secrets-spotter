@@ -26,8 +26,8 @@ fn enrich_findings(text: &str, findings: &mut [SecretFinding]) {
 }
 
 pub fn scan_file(path: &Path, max_size: usize) -> Result<ScanResult> {
-    let metadata = std::fs::metadata(path)
-        .with_context(|| format!("Cannot access {}", path.display()))?;
+    let metadata =
+        std::fs::metadata(path).with_context(|| format!("Cannot access {}", path.display()))?;
 
     if metadata.len() as usize > max_size {
         return Ok(ScanResult {

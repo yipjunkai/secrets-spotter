@@ -10,7 +10,11 @@ use crate::output::Format;
 use crate::scan::ScanResult;
 
 #[derive(Parser)]
-#[command(name = "secrets-spotter", version, about = "Detect secrets in files and directories")]
+#[command(
+    name = "secrets-spotter",
+    version,
+    about = "Detect secrets in files and directories"
+)]
 struct Cli {
     /// Files or directories to scan (reads from stdin if omitted)
     #[arg()]
@@ -54,7 +58,10 @@ impl SeverityFilter {
         use secrets_spotter_core::types::Severity;
         match self {
             SeverityFilter::Low => true,
-            SeverityFilter::Medium => matches!(severity, Severity::Critical | Severity::High | Severity::Medium),
+            SeverityFilter::Medium => matches!(
+                severity,
+                Severity::Critical | Severity::High | Severity::Medium
+            ),
             SeverityFilter::High => matches!(severity, Severity::Critical | Severity::High),
             SeverityFilter::Critical => matches!(severity, Severity::Critical),
         }
