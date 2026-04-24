@@ -83,7 +83,7 @@ lazy_static! {
             prefixes: &["eyJ"],
             kind: SecretKind::JwtToken,
             label: "JWT Token",
-            severity: Severity::High,
+            severity: Severity::Medium,
         },
         // Slack Token
         SecretPattern {
@@ -106,7 +106,7 @@ lazy_static! {
             regex: Regex::new(r"AIza[0-9A-Za-z_-]{35}").unwrap(),
             prefixes: &["AIza"],
             kind: SecretKind::GoogleApiKey,
-            label: "Google API Key",
+            label: "Google API Key (may be restricted)",
             severity: Severity::Medium,
         },
         // Stripe Secret Key
@@ -122,7 +122,7 @@ lazy_static! {
             regex: Regex::new(r"pk_(?:live|test)_[A-Za-z0-9]{24,}").unwrap(),
             prefixes: &["pk_live_", "pk_test_"],
             kind: SecretKind::StripePublishableKey,
-            label: "Stripe Publishable Key",
+            label: "Stripe Publishable Key (public)",
             severity: Severity::Low,
         },
         // Stripe Restricted Key
@@ -171,7 +171,7 @@ lazy_static! {
             prefixes: &["key-"],
             kind: SecretKind::MailgunApiKey,
             label: "Mailgun API Key",
-            severity: Severity::High,
+            severity: Severity::Critical,
         },
         // npm Access Token
         SecretPattern {
@@ -243,15 +243,23 @@ lazy_static! {
             prefixes: &["lin_api_"],
             kind: SecretKind::LinearApiKey,
             label: "Linear API Key",
-            severity: Severity::High,
+            severity: Severity::Critical,
         },
-        // PostHog API Key (phc_ for project, phx_ for personal)
+        // PostHog Project Key — public by design, embedded in browser JS snippets
         SecretPattern {
-            regex: Regex::new(r"ph[cx]_[A-Za-z0-9]{30,}").unwrap(),
-            prefixes: &["phc_", "phx_"],
-            kind: SecretKind::PostHogApiKey,
-            label: "PostHog API Key",
-            severity: Severity::Medium,
+            regex: Regex::new(r"phc_[A-Za-z0-9]{30,}").unwrap(),
+            prefixes: &["phc_"],
+            kind: SecretKind::PostHogProjectKey,
+            label: "PostHog Project Key (public)",
+            severity: Severity::Low,
+        },
+        // PostHog Personal API Key — full account access
+        SecretPattern {
+            regex: Regex::new(r"phx_[A-Za-z0-9]{30,}").unwrap(),
+            prefixes: &["phx_"],
+            kind: SecretKind::PostHogPersonalKey,
+            label: "PostHog Personal API Key",
+            severity: Severity::Critical,
         },
         // GitLab Personal Access Token
         SecretPattern {
@@ -323,7 +331,7 @@ lazy_static! {
             prefixes: &["glsa_"],
             kind: SecretKind::GrafanaApiKey,
             label: "Grafana API Key",
-            severity: Severity::High,
+            severity: Severity::Critical,
         },
         // Pulumi Access Token
         SecretPattern {
@@ -363,7 +371,7 @@ lazy_static! {
             prefixes: &[],
             kind: SecretKind::HerokuApiKey,
             label: "Heroku API Key",
-            severity: Severity::High,
+            severity: Severity::Critical,
         },
         // Azure Subscription Key
         SecretPattern {
@@ -383,7 +391,7 @@ lazy_static! {
             prefixes: &[],
             kind: SecretKind::DatadogApiKey,
             label: "Datadog API Key",
-            severity: Severity::High,
+            severity: Severity::Critical,
         },
 
         // ── Keyword patterns: generic dev words (3) ─────────────────────
