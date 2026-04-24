@@ -181,7 +181,7 @@ fn print_sarif(results: &[ScanResult]) -> Result<()> {
                 driver: SarifDriver {
                     name: "secrets-spotter".to_string(),
                     version: env!("CARGO_PKG_VERSION").to_string(),
-                    information_uri: "https://github.com/anthropics/secrets-spotter".to_string(),
+                    information_uri: "https://github.com/yipjunkai/secrets-spotter".to_string(),
                 },
             },
             results: sarif_results,

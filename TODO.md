@@ -5,9 +5,9 @@
 - [ ] Support scanning inside `<iframe>` content
 - [ ] More known-prefix patterns
 - [ ] Custom user-defined rules via options page
-- [ ] **Bearer token minimum length too restrictive** — `patterns.rs:269` requires 20+ chars for bearer values; many valid tokens are shorter. Consider lowering to 10+
-- [ ] **Twilio `SK` prefix collides with random hex strings** — `patterns.rs:131` matches `SK[0-9a-fA-F]{32}` with no word boundary; any 34-char hex string starting with `SK` (e.g. a CSS color hash or SHA fragment) triggers a Critical finding
-- [ ] **GenericToken requires quoted values but GenericApiKey doesn't** — `patterns.rs:312` ends with mandatory closing quote, so `access_token=abc123...` without quotes is never matched, creating inconsistent coverage
+- [ ] **Bearer token minimum length too restrictive** — `core/src/patterns.rs` requires 20+ chars for bearer values; many valid tokens are shorter. Consider lowering to 10+
+- [ ] **Twilio `SK` prefix collides with random hex strings** — `core/src/patterns.rs` matches `SK[0-9a-fA-F]{32}` with no word boundary; any 34-char hex string starting with `SK` (e.g. a CSS color hash or SHA fragment) triggers a Critical finding
+- [ ] **GenericToken requires quoted values but GenericApiKey doesn't** — `core/src/patterns.rs` GenericToken ends with mandatory closing quote, so `access_token=abc123...` without quotes is never matched, creating inconsistent coverage
 - [ ] **No false-positive filtering on keyword service patterns** — `is_false_positive` only filters `GenericSecret|GenericApiKey|GenericToken|HighEntropyString|BearerToken`; keyword patterns like `AwsSecretKey` and `HerokuApiKey` can match placeholder values like `aws_secret_access_key="YOUR_KEY_HERE"` unchecked
 
 ## False Positives
@@ -15,17 +15,17 @@
 - [ ] Reduce high-entropy false positives (CSS class hashes, webpack chunk IDs) — add minimum length or context check
 - [ ] Add allowlisting for known-safe values (public keys, test fixtures)
 - [ ] Avoid matching generic patterns inside URL paths vs. query param leaks
-- [ ] **Hardcoded entropy threshold** — `detector.rs:102` uses `3.5` without documentation of why; different secret types may benefit from different thresholds
+- [ ] **Hardcoded entropy threshold** — `core/src/detector.rs` uses `3.5` without documentation of why; different secret types may benefit from different thresholds
 
 ## Performance
 
 - [ ] **Duplicate fetch scans for same endpoint** — `interceptor.js` sends every fetch response for scanning even if the same URL has already been scanned. Dedup intercepted fetches by URL (or URL + method) to avoid redundant WASM calls on repeated API requests
 - [ ] **`extractStructuredSecrets` queries all elements** — `content.js:79` `querySelectorAll('*')` iterates every DOM node. On large pages this is expensive
 - [ ] Hash text before sending to service worker to skip already-scanned content
-- [ ] **No WASM return size limit** — `lib.rs:21` converts findings to `JsValue` without capping; a page with thousands of matches produces a huge serialized payload
+- [ ] **No WASM return size limit** — `wasm/src/lib.rs` converts findings to `JsValue` without capping; a page with thousands of matches produces a huge serialized payload
 - [ ] **`extractStructuredSecrets` scans all elements redundantly** — `content.js:104` `querySelectorAll('*')` iterates every element for `data-*` attrs, but `scanPage()` already sends the full `outerHTML`; any data-attr secret is caught by the DOM scan, making the structured scan redundant work
-- [ ] **`merge_findings` clones `full_match` for every HashMap insert** — `detector.rs:269` `best.insert(f.full_match.clone(), f)` allocates a clone even though `f` already owns the string; restructure to avoid the double allocation
-- [ ] **RegexSet + individual regex double-match** — `detector.rs:57-65` first matches all patterns via `REGEX_SET`, then re-runs each matching pattern's individual `Regex`. For patterns without prefixes (keyword/generic), this is always double work
+- [ ] **`merge_findings` clones `full_match` for every HashMap insert** — `core/src/detector.rs` `best.insert(f.full_match.clone(), f)` allocates a clone even though `f` already owns the string; restructure to avoid the double allocation
+- [ ] **RegexSet + individual regex double-match** — `core/src/detector.rs` first matches all patterns via `REGEX_SET`, then re-runs each matching pattern's individual `Regex`. For patterns without prefixes (keyword/generic), this is always double work
 - [ ] **`pendingTexts` cap of 1000 entries has no size limit** — `content.js:157` caps array length but not total byte size; 1000 nodes with 100KB textContent each = 100MB pending in memory
 
 ## Architecture
@@ -42,9 +42,9 @@
 
 ## Security
 
-- [ ] **WASM files are web-accessible to all origins** — `manifest.json:37` exposes WASM resources with `matches: ["<all_urls>"]`, meaning any website can load and probe the scanner. Restrict to extension origin only if not needed by content scripts
-- [ ] **`serde_wasm_bindgen::to_value().unwrap()` panics on serialization failure** — `lib.rs:33` panics if a finding contains data that can't be serialized, crashing the entire service worker. Use `unwrap_or` with an empty `JsValue`
-- [ ] **`merge_findings` double-unwrap** — `lib.rs:58-61` calls `.unwrap()` on both deserialization and serialization; malformed input from a compromised content script panics the WASM module instead of returning an empty result
+- [ ] **WASM files are web-accessible to all origins** — `manifest.json` exposes WASM resources with `matches: ["<all_urls>"]`, meaning any website can load and probe the scanner. Restrict to extension origin only if not needed by content scripts
+- [ ] **`serde_wasm_bindgen::to_value().unwrap()` panics on serialization failure** — `wasm/src/lib.rs` panics if a finding contains data that can't be serialized, crashing the entire service worker. Use `unwrap_or` with an empty `JsValue`
+- [ ] **`merge_findings` double-unwrap** — `wasm/src/lib.rs` calls `.unwrap()` on both deserialization and serialization; malformed input from a compromised content script panics the WASM module instead of returning an empty result
 
 ## UX
 
@@ -99,26 +99,27 @@
 
 - [ ] **Large monolithic JS files** — `content.js`, `interceptor.js`, and `service-worker.js` each handle multiple responsibilities. Split `service-worker.js` into separate modules (e.g. `wasm-lifecycle.js`, `storage.js`, `badge.js`, `message-router.js`)
 - [ ] **No TypeScript** — all extension JS is untyped; message shapes between content scripts, service worker, and popup are implicit contracts with no schema enforcement. Add at minimum JSDoc type annotations for message interfaces, or migrate to TypeScript
-- [ ] **Version sync is manual** — `Cargo.toml` and `manifest.json` versions must be updated in lockstep with no automation; add a CI check or build-time sync script
-- [ ] **No plugin/rule system** — adding a new secret pattern requires modifying `patterns.rs` + `types.rs` (new `SecretKind` variant), recompiling WASM, and rebuilding. Consider a config-driven pattern format (TOML/JSON) that can be loaded at runtime
+- [ ] **Version sync is manual** — workspace `Cargo.toml` and `manifest.json` versions must be updated in lockstep with no automation; add a CI check or justfile recipe
+- [ ] **No plugin/rule system** — adding a new secret pattern requires modifying `core/src/patterns.rs` + `core/src/types.rs` (new `SecretKind` variant), recompiling, and rebuilding. Consider a config-driven pattern format (TOML/JSON) that can be loaded at runtime
 - [ ] **Chrome-only** — Manifest V3 + `chrome.*` APIs used throughout with no abstraction layer. Abstract browser APIs behind a compatibility shim if Firefox/Safari support is planned
 - [ ] **No configuration surface** — no options page, no allowlisting, no per-site toggles. Every behavioral change requires code modification (see UX section for options page)
-- [ ] **Duplicate filter lists between Rust and JS** — `filter.rs:6` `SKIP_EXTENSIONS` and `interceptor.js:19` define identical skip lists independently; adding a new extension requires updating both and they can silently diverge
-- [ ] **No `#[cfg(test)]` modules in any Rust source file** — all source files lack inline tests and the `tests/` directory doesn't exist; `cargo test` runs zero unit tests
-- [ ] **`release.yml` opt-level `"s"` conflicts with benchmarking** — `Cargo.toml:28` sets `opt-level = "s"` (size-optimized) in release profile, which is correct for the extension but gives misleading numbers if someone runs `cargo bench` with `--release`
+- [ ] **Duplicate filter lists between Rust and JS** — `core/src/filter.rs` `SKIP_EXTENSIONS` and `interceptor.js` define identical skip lists independently; adding a new extension requires updating both and they can silently diverge
+- [ ] **No `#[cfg(test)]` modules in any Rust source file** — all source files lack inline tests; `cargo test` runs zero unit tests
+- [ ] **`release` profile opt-level `"s"` conflicts with benchmarking** — workspace `Cargo.toml` sets `opt-level = "s"` (size-optimized) in release profile, which is correct for WASM but gives misleading numbers if someone runs `cargo bench` with `--release`
 
 ## CI/CD
 
-- [ ] **Release artifact path broken** — `release.yml:92-93` references flat artifact filenames but `actions/download-artifact` nests them in subdirectories
-- [ ] **Release job skips verification** — `release.yml` depends only on the `build` job, not the full `verify` pipeline; untested code can ship
+- [x] **~~Release artifact path broken~~** — release workflow now collects artifacts correctly via `find`
+- [ ] **Release job skips verification** — `release.yml` depends only on the `build` job, not the full `verify` pipeline; untested code can ship. v1.1.0 shipped with a clippy lint error because `verify` failed but `release` ran independently on the tag push
+- [ ] **No pinned Rust toolchain** — stable-channel upgrades (e.g. Rust 1.95 adding `clippy::useless_conversion` triggers) can break CI without warning; add a `rust-toolchain.toml` to pin the compiler
 - [ ] **No dependency vulnerability scanning** — no `cargo-audit`, `cargo-deny`, or Dependabot config; vulnerable dependencies go undetected
-- [ ] **TruffleHog pinned to `@main`** — `verify.yml:18` uses a floating tag; pin to a specific release for reproducibility
-- [ ] **Build script not used in CI** — `scripts/build.sh` and CI `wasm-pack` commands can diverge; CI should invoke the same script
-- [ ] **No MSRV declared** — `Cargo.toml` specifies `edition = "2021"` but no minimum Rust version; builds may break silently on older toolchains
+- [ ] **TruffleHog pinned to `@main`** — `verify.yml` uses a floating tag; pin to a specific release for reproducibility
+- [x] **~~Build script not used in CI~~** — CI now uses `just` recipes matching local development
+- [ ] **No MSRV declared** — workspace `Cargo.toml` specifies `edition = "2021"` but no minimum Rust version; builds may break silently on older toolchains
 - [ ] Add CHANGELOG.md for tracking releases
 - [ ] Add SECURITY.md with vulnerability disclosure policy
 - [ ] Add CONTRIBUTING.md with development setup and guidelines
-- [ ] **Release uses `actions/checkout@v6` which doesn't exist** — `release.yml:70` references `@v6` but the latest stable is `@v4`; the release job will fail
-- [ ] **Test job unnecessarily depends on build** — `verify.yml:70` `test` needs `build`, but `cargo test` doesn't need WASM output; the dependency adds unnecessary CI latency
-- [ ] **No tests for `wasm32` target** — `verify.yml:86` runs `cargo test` on native target only; panics or compile errors specific to wasm32 go undetected
-- [ ] **Checksum file format is non-standard** — `release.yml:51` writes `filename|path|hash` with pipe separators instead of the standard `sha256sum` format (`hash  filename`); verification tools won't understand it
+- [x] **~~Release uses `actions/checkout@v6` which doesn't exist~~** — fixed, all checkout steps use `@v4`
+- [ ] **Test job unnecessarily depends on build** — `verify.yml` `test` needs `build`, but `cargo test` doesn't need WASM output; the dependency adds unnecessary CI latency
+- [ ] **No tests for `wasm32` target** — `verify.yml` runs `cargo test` on native target only; panics or compile errors specific to wasm32 go undetected
+- [x] **~~Checksum file format is non-standard~~** — release now uses standard `sha256sum` format

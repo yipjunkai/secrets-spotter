@@ -276,7 +276,7 @@ impl SecretDetector {
 
         let mut best: HashMap<String, SecretFinding> = HashMap::new();
 
-        for f in existing.into_iter().chain(new.into_iter()) {
+        for f in existing.into_iter().chain(new) {
             match best.get(&f.full_match) {
                 Some(prev) if prev.severity <= f.severity => {}
                 _ => {
