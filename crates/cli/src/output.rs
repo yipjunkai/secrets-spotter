@@ -21,10 +21,7 @@ pub fn print_results(results: &[ScanResult], format: Format, reveal: bool) -> Re
     }
 }
 
-fn shown_match<'a>(
-    finding: &'a secrets_spotter_core::types::SecretFinding,
-    reveal: bool,
-) -> &'a str {
+fn shown_match(finding: &secrets_spotter_core::types::SecretFinding, reveal: bool) -> &str {
     if reveal {
         &finding.full_match
     } else {
