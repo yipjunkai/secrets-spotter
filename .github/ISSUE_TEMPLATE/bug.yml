@@ -1,0 +1,56 @@
+name: Bug report
+description: Detection bugs (missed secrets, false positives), crashes, or UI bugs.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence describing the bug.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did this happen?
+      options:
+        - CLI
+        - Chrome extension
+        - Both
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal input that reproduces the bug. For detection bugs, paste the sample showing the (un)matched secret. **Please rotate any real keys before sharing.**
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: e.g. 1.1.0 — from `secrets-spotter --version` or the extension popup
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system / browser
+      placeholder: e.g. macOS 14 arm64 / Chrome 130, Ubuntu 24.04
+    validations:
+      required: false
