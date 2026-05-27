@@ -43,6 +43,11 @@ struct Cli {
     /// Disable colored output
     #[arg(long)]
     no_color: bool,
+
+    /// Show the full, unredacted match value in output (use with care — will
+    /// print live secrets to stdout / any file the output is redirected to).
+    #[arg(long)]
+    reveal: bool,
 }
 
 #[derive(Clone, clap::ValueEnum)]
@@ -116,7 +121,7 @@ fn run() -> Result<()> {
     let has_findings = !results.is_empty();
 
     if !cli.quiet {
-        output::print_results(&results, cli.format)?;
+        output::print_results(&results, cli.format, cli.reveal)?;
     }
 
     if has_findings {

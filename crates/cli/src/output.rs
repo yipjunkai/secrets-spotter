@@ -13,11 +13,22 @@ pub enum Format {
     Sarif,
 }
 
-pub fn print_results(results: &[ScanResult], format: Format) -> Result<()> {
+pub fn print_results(results: &[ScanResult], format: Format, reveal: bool) -> Result<()> {
     match format {
-        Format::Text => print_text(results),
-        Format::Json => print_json(results),
-        Format::Sarif => print_sarif(results),
+        Format::Text => print_text(results, reveal),
+        Format::Json => print_json(results, reveal),
+        Format::Sarif => print_sarif(results, reveal),
+    }
+}
+
+fn shown_match<'a>(
+    finding: &'a secrets_spotter_core::types::SecretFinding,
+    reveal: bool,
+) -> &'a str {
+    if reveal {
+        &finding.full_match
+    } else {
+        &finding.matched_text
     }
 }
 
@@ -31,7 +42,7 @@ fn severity_colored(severity: &Severity) -> colored::ColoredString {
     }
 }
 
-fn print_text(results: &[ScanResult]) -> Result<()> {
+fn print_text(results: &[ScanResult], reveal: bool) -> Result<()> {
     for result in results {
         for finding in &result.findings {
             println!(
@@ -40,7 +51,7 @@ fn print_text(results: &[ScanResult]) -> Result<()> {
                 finding.label
             );
             println!("  File: {}:{}", result.source, finding.start);
-            println!("  Match: {}", finding.matched_text);
+            println!("  Match: {}", shown_match(finding, reveal));
             println!();
         }
     }
@@ -57,7 +68,7 @@ struct JsonFinding {
     matched_text: String,
 }
 
-fn print_json(results: &[ScanResult]) -> Result<()> {
+fn print_json(results: &[ScanResult], reveal: bool) -> Result<()> {
     let mut all: Vec<JsonFinding> = Vec::new();
     for result in results {
         for finding in &result.findings {
@@ -67,7 +78,7 @@ fn print_json(results: &[ScanResult]) -> Result<()> {
                 kind: format!("{:?}", finding.kind),
                 label: finding.label.clone(),
                 severity: format!("{:?}", finding.severity),
-                matched_text: finding.matched_text.clone(),
+                matched_text: shown_match(finding, reveal).to_string(),
             });
         }
     }
@@ -148,7 +159,7 @@ fn sarif_level(severity: &Severity) -> &'static str {
     }
 }
 
-fn print_sarif(results: &[ScanResult]) -> Result<()> {
+fn print_sarif(results: &[ScanResult], reveal: bool) -> Result<()> {
     let mut sarif_results = Vec::new();
 
     for result in results {
@@ -157,7 +168,7 @@ fn print_sarif(results: &[ScanResult]) -> Result<()> {
                 rule_id: format!("{:?}", finding.kind),
                 level: sarif_level(&finding.severity).to_string(),
                 message: SarifMessage {
-                    text: format!("{}: {}", finding.label, finding.matched_text),
+                    text: format!("{}: {}", finding.label, shown_match(finding, reveal)),
                 },
                 locations: vec![SarifLocation {
                     physical_location: SarifPhysicalLocation {
