@@ -47,12 +47,20 @@ lazy_static! {
             label: "GitHub OAuth Token",
             severity: Severity::Critical,
         },
-        // GitHub App Tokens (user-to-server, installation, refresh)
+        // GitHub App Tokens — user-to-server (ghu_) and refresh (ghr_) are fixed 36 chars
         SecretPattern {
-            regex: Regex::new(r"gh[usr]_[A-Za-z0-9]{36}").unwrap(),
-            prefixes: &["ghu_", "ghs_", "ghr_"],
+            regex: Regex::new(r"gh[ur]_[A-Za-z0-9]{36}").unwrap(),
+            prefixes: &["ghu_", "ghr_"],
             kind: SecretKind::GitHubAppToken,
             label: "GitHub App Token",
+            severity: Severity::Critical,
+        },
+        // GitHub App installation tokens — legacy 36-char OR new stateless ~520-char format
+        SecretPattern {
+            regex: Regex::new(r"ghs_(?:[A-Za-z0-9]{400,600}|[A-Za-z0-9]{36})").unwrap(),
+            prefixes: &["ghs_"],
+            kind: SecretKind::GitHubAppToken,
+            label: "GitHub App Installation Token",
             severity: Severity::Critical,
         },
         // Private Key (PEM)
@@ -454,4 +462,40 @@ lazy_static! {
             severity: Severity::Medium,
         },
     ];
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::scan_text;
+    use crate::types::SecretKind;
+
+    fn matches_github_app(text: &str) -> bool {
+        scan_text(text)
+            .iter()
+            .any(|f| matches!(f.kind, SecretKind::GitHubAppToken) && f.full_match == text)
+    }
+
+    #[test]
+    fn ghs_legacy_36_char_token_matches() {
+        let token = "ghs_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789";
+        assert_eq!(token.len(), 40);
+        assert!(matches_github_app(token));
+    }
+
+    #[test]
+    fn ghs_new_stateless_long_token_matches() {
+        // New stateless format is ~520 chars; build one inside the 400–600 window.
+        let body: String = std::iter::repeat('A').take(516).collect();
+        let token = format!("ghs_{body}");
+        assert_eq!(token.len(), 520);
+        assert!(matches_github_app(&token));
+    }
+
+    #[test]
+    fn ghs_token_with_disallowed_length_does_not_match() {
+        // 200 chars after the prefix is neither 36 nor in 400–600 — must not match.
+        let body: String = std::iter::repeat('A').take(200).collect();
+        let token = format!("ghs_{body}");
+        assert!(!matches_github_app(&token));
+    }
 }

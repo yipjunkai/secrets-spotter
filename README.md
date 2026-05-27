@@ -1,12 +1,12 @@
 # Secrets Spotter
 
-A CLI tool and Chrome extension that detects exposed secrets in files, directories, stdin, web pages, and network traffic. Uses a shared Rust core with 50 detection patterns and high-performance regex matching.
+A CLI tool and Chrome extension that detects exposed secrets in files, directories, stdin, web pages, and network traffic. Uses a shared Rust core with 51 detection patterns and high-performance regex matching.
 
 ## Features
 
 - **CLI tool** for scanning files, directories, and stdin — CI/CD ready with JSON and SARIF output
 - **Chrome extension** for real-time scanning of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
-- **50 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and more
+- **51 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and more
 - **False-positive filtering** using Shannon entropy, placeholder detection, code identifier rejection, and context analysis
 - **JWT decoder in popup** — expandable header/payload JSON view for detected JWTs
 - **SPA-aware** — re-scans on pushState, replaceState, popstate, and hashchange navigations
@@ -136,9 +136,9 @@ secrets-spotter/
 
 ## Detection Strategy
 
-Secrets Spotter uses a three-tier detection strategy (50 patterns total):
+Secrets Spotter uses a three-tier detection strategy (51 patterns total):
 
-### Known-prefix patterns (41)
+### Known-prefix patterns (42)
 
 Match by a fixed prefix or structure baked into the key itself — highest confidence.
 
@@ -148,7 +148,8 @@ Match by a fixed prefix or structure baked into the key itself — highest confi
 | AWS Temp Key (STS) | `ASIA...`                                                      |
 | GitHub PAT         | `ghp_` / `github_pat_`                                         |
 | GitHub OAuth       | `gho_`                                                         |
-| GitHub App         | `ghu_` / `ghs_` / `ghr_`                                       |
+| GitHub App         | `ghu_` / `ghr_` (36 chars)                                     |
+| GitHub App Install | `ghs_` (legacy 36 chars + new stateless ~520 chars)            |
 | Private Key (PEM)  | `-----BEGIN...PRIVATE KEY-----`                                |
 | Password in URL    | `protocol://user:pass@host` (incl. redis, mongodb, amqp, smtp) |
 | JWT                | `eyJ...eyJ...`                                                 |
