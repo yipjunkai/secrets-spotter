@@ -66,6 +66,10 @@ async function initWasm() {
 
 const badgeSettleTimers = new Map();
 
+function significantCount(findings) {
+  return findings.filter(f => f.severity === 'Critical' || f.severity === 'High').length;
+}
+
 function updateBadge(tabId, count) {
   if (count > 0) {
     // Immediately show the count
@@ -155,7 +159,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const tabData = await getTabData(tabId);
         tabData.findings = tabData.findings.filter(f => f.source && f.source !== 'dom' && f.source !== 'dom:structured');
         await setTabData(tabId, tabData);
-        updateBadge(tabId, tabData.findings.length);
+        updateBadge(tabId, significantCount(tabData.findings));
       }).then(() => sendResponse({}));
     } else {
       sendResponse({});
@@ -220,7 +224,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           tabData.sources[source] = (tabData.sources[source] || 0) + 1;
 
           await setTabData(tabId, tabData);
-          updateBadge(tabId, tabData.findings.length);
+          updateBadge(tabId, significantCount(tabData.findings));
         });
       }
 
