@@ -1,105 +1,119 @@
 # Secrets Spotter
 
-A CLI tool and Chrome extension that detects exposed secrets in files, directories, stdin, web pages, and network traffic. Uses a shared Rust core with 51 detection patterns and high-performance regex matching.
+[![CI](https://github.com/yipjunkai/secrets-spotter/actions/workflows/verify.yml/badge.svg)](https://github.com/yipjunkai/secrets-spotter/actions/workflows/verify.yml)
+[![Release](https://img.shields.io/github/v/release/yipjunkai/secrets-spotter)](https://github.com/yipjunkai/secrets-spotter/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#-license)
 
-## Features
+**A CLI tool and Chrome extension that detects exposed API keys, tokens, and other secrets in files, stdin, web pages, and network traffic.** Rust core with 51 detection patterns. Fully local — no data leaves your machine or browser.
 
-- **CLI tool** for scanning files, directories, and stdin — CI/CD ready with JSON and SARIF output
-- **Chrome extension** for real-time scanning of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
-- **51 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and more
-- **False-positive filtering** using Shannon entropy, placeholder detection, code identifier rejection, and context analysis
-- **JWT decoder in popup** — expandable header/payload JSON view for detected JWTs
-- **SPA-aware** — re-scans on pushState, replaceState, popstate, and hashchange navigations
-- **Fully local** — no data leaves your machine or browser
+```text
+$ secrets-spotter src/ .env
+[Critical] AWS Access Key ID
+  File: src/aws.js:42
+  Match: AKIA****EXAMPLE
+[Medium] Google API Key
+  File: .env:8
+  Match: AIza****Z9aA
+```
 
-## CLI Usage
+## ⚡ Approach
+
+Three-tier detection pipeline tuned for speed and precision:
+
+1. **Known-prefix patterns (42)** — fixed prefixes baked into the credential format itself (`AKIA`, `ghp_`, `sk-ant-`, `eyJ...eyJ`). Highest confidence, lowest false-positive rate.
+2. **Keyword patterns (7)** — service or generic variable names paired with high-entropy values (`aws_secret_access_key=...`, `authorization: Bearer ...`).
+3. **Entropy fallback (2)** — broad keyword match (`key`, `token`, `secret`) with Shannon-entropy validation (≥3.5 bits/char) to catch novel formats.
+
+A `RegexSet` + `memchr` pre-filter on prefix substrings means non-matching input is rejected without running any regex. False-positive filtering rejects placeholders, code identifiers (camelCase / snake_case / kebab-case), URLs, file paths, and low-diversity character sets before reporting.
+
+## 📦 Install
+
+### From GitHub Releases
+
+Pre-built CLI binaries for Linux x86_64, macOS (Intel + Apple Silicon), and Windows x86_64 are published with each tag:
 
 ```bash
-# Scan files
+# Replace TARGET with your platform (x86_64-unknown-linux-gnu, aarch64-apple-darwin, ...)
+curl -L https://github.com/yipjunkai/secrets-spotter/releases/latest/download/secrets-spotter-v1.1.0-${TARGET}.tar.gz | tar xz
+```
+
+### From source
+
+```bash
+git clone https://github.com/yipjunkai/secrets-spotter
+cd secrets-spotter
+just build
+# CLI binary at target/release/secrets-spotter
+```
+
+Requires [Rust](https://rustup.rs/), [`just`](https://github.com/casey/just), and [`wasm-pack`](https://rustwasm.github.io/wasm-pack/installer/) (extension only).
+
+### Chrome extension
+
+1. `just build` (builds the WASM into `extension/wasm/`)
+2. Open `chrome://extensions/` → enable **Developer mode** → **Load unpacked** → select the `extension/` folder
+
+## 🚀 Quick start
+
+```bash
+# Scan files and directories
 secrets-spotter src/ .env config/
 
 # Scan from stdin
 cat credentials.json | secrets-spotter
 
-# JSON output (for scripting / CI)
+# JSON output for scripting / CI
 secrets-spotter --format json .
 
-# SARIF output (for GitHub Code Scanning)
+# SARIF output for GitHub Code Scanning
 secrets-spotter --format sarif . > results.sarif
 
 # Filter by severity
 secrets-spotter --severity high .
 
-# Only scan specific file types
+# Glob filter
 secrets-spotter --glob "*.js,*.env,*.yaml" .
+
+# Reveal full unredacted values (use with care)
+secrets-spotter --reveal .
 
 # Quiet mode — exit code only
 secrets-spotter --quiet .
 ```
 
-### CLI Options
+Once the Chrome extension is loaded, browse any website. The icon badge shows the count of Critical/High findings. Click the icon for a grouped breakdown with redacted previews, copy-to-clipboard, and an expandable JWT decoder.
 
-```text
-secrets-spotter [OPTIONS] [PATH...]
+## ✨ Features
 
-ARGUMENTS:
-  [PATH...]              Files or directories to scan (reads from stdin if omitted)
+- **CLI tool** for scanning files, directories, and stdin — CI/CD ready with JSON and SARIF output
+- **Chrome extension** for real-time scanning of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
+- **51 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 45 more
+- **False-positive filtering** — Shannon entropy, placeholder detection, code-identifier rejection, URL/path exclusion
+- **JWT decoder in popup** — expandable header / payload JSON view for detected JWTs
+- **SPA-aware** — extension re-scans on `pushState`, `replaceState`, `popstate`, and `hashchange` navigations
+- **Fully local** — no data leaves your machine or browser; no telemetry, no cloud calls
 
-OPTIONS:
-  -f, --format <FMT>     Output format: text (default), json, sarif
-  -s, --severity <LVL>   Minimum severity: critical, high, medium, low (default: low)
-  -g, --glob <PATTERN>   Only scan files matching glob (e.g. "*.js,*.env")
-      --max-size <N>     Max file size in bytes (default: 2097152)
-      --no-color         Disable colored output
-  -q, --quiet            Suppress output, exit code only
-  -h, --help             Print help
-  -V, --version          Print version
-```
+## 🗺️ Coming soon
 
-### Exit Codes
+- [ ] Chrome Web Store listing
+- [ ] Firefox support (Manifest V3 port)
+- [ ] User-defined rules via options page
+- [ ] Per-site disable toggle and severity filtering in popup
+- [ ] Allowlisting for known-safe values (public keys, test fixtures)
+- [ ] Dark mode in popup
 
-| Code | Meaning                            |
-| ---- | ---------------------------------- |
-| `0`  | No secrets found                   |
-| `1`  | Secrets found                      |
-| `2`  | Error (bad arguments, I/O failure) |
+## 🤔 Why Secrets Spotter exists
 
-## Chrome Extension
+Existing secret scanners optimize for the **server-side audit** workflow: scan a git history, scan a CI build, scan an S3 bucket. They're heavy, slow, and operate on already-committed code.
 
-### How It Works
+Secrets Spotter optimizes for two complementary workflows the existing tools miss:
 
-```text
-Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
-            → content.js extracts DOM text + structured attributes
-            → Text truncated to 2 MB and deduplicated by SHA-256 hash
-            → Background service worker runs WASM scanner
-            → Rust matches against known-prefix and keyword patterns (RegexSet + memchr pre-filter)
-            → False positives filtered (entropy, placeholders, code identifiers, English words)
-            → Findings deduplicated in single O(n) pass, merged across scan batches
-            → Findings shown in popup (JWTs include a decoder view)
-            → SPA navigations trigger re-scan automatically
-```
+- **Local pre-flight** — a CLI fast enough to run on every save (`secrets-spotter src/` in tens of milliseconds), not just on commit. Same Rust regex engine as the extension, no Python / Node startup tax.
+- **Live browser scanning** — the Chrome extension surfaces secrets as you visit sites. Find your own keys leaking from someone else's frontend, find production tokens accidentally shipped in client JS, audit a vendor's web app in real time.
 
-### Extension Install
+Both surfaces are fully local — nothing about your code, network traffic, or browsing leaves the machine.
 
-1. Run `just build`
-2. Open `chrome://extensions/`
-3. Enable **Developer mode**
-4. Click **Load unpacked** → select the `extension/` folder
-
-Browse any website. The extension icon badge shows the count of secrets found. Click the icon to view findings grouped by severity, with redacted previews and copy-to-clipboard for full values. JWT findings include an expandable decoder with header and payload JSON.
-
-### Configuration
-
-#### `SCAN_EXTERNAL_RESOURCES` (interceptor.js)
-
-Controls whether the extension re-fetches external `<script src>` and `<link stylesheet>` files to scan their contents. **Default: `false`.**
-
-This is disabled by default because the interceptor runs in the page's MAIN world, where fetches are subject to the page's Content Security Policy (CSP). Sites with strict `connect-src` directives will block these fetches and log console errors. Most secrets in external scripts are already caught indirectly when the script uses them in fetch/XHR calls, which the interceptor captures.
-
-To enable, set `SCAN_EXTERNAL_RESOURCES = true` in `extension/content/interceptor.js`.
-
-## Project Structure
+## 📁 Project structure
 
 ```text
 secrets-spotter/
@@ -109,7 +123,7 @@ secrets-spotter/
 │   │   └── src/
 │   │       ├── lib.rs          # Public API (scan_text, merge_findings)
 │   │       ├── detector.rs     # Detection engine + false-positive filtering
-│   │       ├── patterns.rs     # 50 secret regex patterns
+│   │       ├── patterns.rs     # 51 secret regex patterns
 │   │       ├── types.rs        # SecretKind, Severity, SecretFinding
 │   │       ├── filter.rs       # URL/content filtering (skip CDNs, media)
 │   │       ├── cookies.rs      # Cookie parsing utility
@@ -124,23 +138,72 @@ secrets-spotter/
 │           └── lib.rs          # Thin #[wasm_bindgen] wrappers
 ├── extension/                  # Chrome extension (Manifest V3)
 │   ├── manifest.json
-│   ├── background/
-│   │   └── service-worker.js
+│   ├── background/service-worker.js
 │   ├── content/
 │   │   ├── interceptor.js      # Network traffic capture (MAIN world)
 │   │   └── content.js          # DOM scanning (ISOLATED world)
 │   ├── popup/
 │   └── wasm/                   # Compiled WASM output (build artifacts)
-├── justfile                    # Build, test, clean recipes
+├── .github/workflows/          # ci (verify), release, security, stale
+└── justfile                    # Build, test, lint, clean recipes
 ```
 
-## Detection Strategy
+## 💻 CLI reference
 
-Secrets Spotter uses a three-tier detection strategy (51 patterns total):
+```text
+secrets-spotter [OPTIONS] [PATH...]
+```
+
+| Option                | Description                                                                    |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `[PATH...]`           | Files or directories to scan. Reads stdin if omitted.                          |
+| `-f, --format <FMT>`  | `text` (default), `json`, `sarif`                                              |
+| `-s, --severity <L>`  | Minimum severity: `critical`, `high`, `medium`, `low` (default)                |
+| `-g, --glob <P>`      | Only scan files matching glob (comma-separated, e.g. `"*.js,*.env"`)           |
+| `--max-size <N>`      | Max file size in bytes (default 2,097,152 = 2 MiB)                             |
+| `--reveal`            | Print full unredacted match values (off by default — secrets are masked)       |
+| `--no-color`          | Disable colored output                                                         |
+| `-q, --quiet`         | Suppress output, exit code only                                                |
+| `-h, --help`          | Print help                                                                     |
+| `-V, --version`       | Print version                                                                  |
+
+Exit codes:
+
+| Code | Meaning                            |
+| ---- | ---------------------------------- |
+| `0`  | No secrets found                   |
+| `1`  | Secrets found                      |
+| `2`  | Error (bad arguments, I/O failure) |
+
+## 🌐 Chrome extension internals
+
+```text
+Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
+            → content.js extracts DOM text + structured attributes
+            → Text truncated to 2 MB and deduplicated by SHA-256 hash
+            → Background service worker runs the WASM scanner
+            → Rust matches against RegexSet (+ memchr prefix prefilter)
+            → False positives filtered (entropy, placeholders, code identifiers, English words)
+            → Findings deduplicated in single O(n) pass, merged across scan batches
+            → Findings shown in popup (JWTs include a decoder view)
+            → SPA navigations trigger re-scan automatically
+```
+
+### `SCAN_EXTERNAL_RESOURCES` (`extension/content/interceptor.js`)
+
+Controls whether the extension re-fetches external `<script src>` and `<link stylesheet>` files to scan their contents. **Default: `false`.**
+
+Disabled by default because the interceptor runs in the page's MAIN world, where fetches are subject to the page's Content Security Policy. Sites with strict `connect-src` directives will block these fetches and log console errors. Most secrets in external scripts are caught indirectly when the script *uses* them in fetch/XHR calls — which the interceptor captures regardless.
+
+To enable: set `SCAN_EXTERNAL_RESOURCES = true` in `extension/content/interceptor.js`.
+
+## 🔍 Detection patterns
+
+51 patterns across three tiers.
 
 ### Known-prefix patterns (42)
 
-Match by a fixed prefix or structure baked into the key itself — highest confidence.
+Match by a fixed prefix or structure baked into the credential itself — highest confidence.
 
 | Service            | Prefix/Structure                                               |
 | ------------------ | -------------------------------------------------------------- |
@@ -186,71 +249,39 @@ Match by a fixed prefix or structure baked into the key itself — highest confi
 | Pulumi             | `pul-`                                                         |
 | Hugging Face       | `hf_`                                                          |
 
-### Keyword patterns: service-specific (4)
+### Keyword: service-specific (4)
 
 Match by a service name in the variable name (e.g. `heroku_api_key=...`).
 
 AWS Secret Key, Heroku, Azure Subscription Key, Datadog.
 
-### Keyword patterns: generic dev words (3)
+### Keyword: generic dev words (3)
 
-Match by common developer variable names (e.g. `api_key=...`, `authorization: Bearer ...`).
+Match by common developer variable names (`api_key=...`, `authorization: Bearer ...`).
 
 Generic API Key, Bearer Token, Generic API Token.
 
 ### Entropy-based fallback (2)
 
-Broad keyword match (`key`, `token`, `secret`, `password`, etc.) with Shannon entropy validation (min 3.5 bits/char) to catch secrets that don't match any known prefix or service keyword.
+Broad keyword match (`key`, `token`, `secret`, `password`) with Shannon entropy validation (≥3.5 bits/char) to catch credentials that don't match any known prefix or service keyword.
 
 ### False-positive filtering
 
-- **Placeholder detection** — skips `YOUR_KEY`, `example`, `test`, `TODO`, etc.
+- **Placeholder detection** — skips `YOUR_KEY`, `example`, `test`, `TODO`, and similar
 - **Shannon entropy** — rejects low-entropy values for entropy-gated patterns (UTF-8-aware, counts chars not bytes)
-- **Character class diversity** — requires mix of uppercase, lowercase, digits, or symbols/non-ASCII
-- **English word filtering** — ignores lowercase hyphenated words like `my-setting`
+- **Character class diversity** — requires a mix of upper, lower, digits, or symbols / non-ASCII
+- **English word filtering** — ignores lowercase hyphenated phrases like `my-setting`
 - **URL / path exclusion** — ignores values that look like URLs or file paths
 - **Code identifier rejection** — skips camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case, and dot-notation values
 
-## Development
+## 🤝 Contributing
 
-### Prerequisites
+See [CONTRIBUTING.md](CONTRIBUTING.md). The recipe for adding a new detection pattern is documented there with a worked example.
 
-- [Rust](https://rustup.rs/)
-- [just](https://github.com/casey/just) (command runner)
-- [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/) (for extension builds)
+Security issues: please use the [private advisory channel](https://github.com/yipjunkai/secrets-spotter/security/advisories/new) — see [SECURITY.md](SECURITY.md).
 
-### Build
+## 📄 License
 
-```bash
-# Build everything (CLI + WASM extension)
-just build
-
-# Build CLI only
-just build-cli
-
-# Build WASM only
-just build-wasm
-
-# Run tests
-just test
-
-# Check formatting and lints
-just lint
-
-# Auto-format and apply lint fixes
-just format
-
-# Clean all build artifacts
-just clean
-```
-
-## License
-
-Secrets Spotter is licensed under either of
-
-- [MIT License](LICENSE-MIT)
-- [Apache License 2.0](LICENSE-APACHE)
-
-at your option.
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE), at your option.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in **Secrets Spotter** by you, as defined in the Apache-2.0 license, shall be dually licensed as above, without any additional terms or conditions.
