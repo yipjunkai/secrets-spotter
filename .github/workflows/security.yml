@@ -1,0 +1,56 @@
+name: security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # weekly Monday
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Install cargo-audit
+        run: cargo install --locked cargo-audit
+      - run: cargo audit --deny warnings
+
+  dependency-review:
+    name: dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+
+  codeql-javascript:
+    name: codeql (javascript)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+        with:
+          languages: javascript
+      - uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+        with:
+          category: javascript
