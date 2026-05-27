@@ -1,8 +1,9 @@
 # Secrets Spotter
 
 [![CI](https://github.com/yipjunkai/secrets-spotter/actions/workflows/verify.yml/badge.svg)](https://github.com/yipjunkai/secrets-spotter/actions/workflows/verify.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/yipjunkai/secrets-spotter/badge)](https://securityscorecards.dev/viewer/?uri=github.com/yipjunkai/secrets-spotter)
 [![Release](https://img.shields.io/github/v/release/yipjunkai/secrets-spotter)](https://github.com/yipjunkai/secrets-spotter/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#-license)
+[![License](https://img.shields.io/github/license/yipjunkai/secrets-spotter)](#-license)
 
 **A CLI tool and Chrome extension that detects exposed API keys, tokens, and other secrets in files, stdin, web pages, and network traffic.** Rust core with 51 detection patterns. Fully local — no data leaves your machine or browser.
 
