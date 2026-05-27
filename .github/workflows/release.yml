@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-cli:
@@ -28,15 +28,13 @@ jobs:
             os: windows-latest
             artifact: secrets-spotter.exe
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
       - name: Build CLI
         run: cargo build --release -p secrets-spotter --target ${{ matrix.target }}
@@ -54,8 +52,7 @@ jobs:
             tar czf "$ARCHIVE.tar.gz" "$ARCHIVE"
           fi
 
-      - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: cli-${{ matrix.target }}
           path: secrets-spotter-${{ github.ref_name }}-${{ matrix.target }}.*
@@ -65,21 +62,17 @@ jobs:
     name: Build Extension
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
 
-      - name: Install just
-        uses: extractions/setup-just@v2
+      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
 
-      - name: Install wasm-pack
-        uses: jetli/wasm-pack-action@v0.4.0
+      - uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa # v0.4.0
 
       - name: Build WASM
         run: just build-wasm
@@ -90,8 +83,7 @@ jobs:
       - name: Package extension
         run: cd extension && zip -r ../secrets-spotter-extension-${{ github.ref_name }}.zip .
 
-      - name: Upload extension artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: extension
           path: secrets-spotter-extension-${{ github.ref_name }}.zip
@@ -104,10 +96,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: artifacts
 
@@ -127,7 +118,7 @@ jobs:
           cd release && sha256sum * > checksums.txt
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:
           tag_name: ${{ steps.cargo_version.outputs.version }}
           body: |
