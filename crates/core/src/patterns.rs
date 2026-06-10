@@ -467,6 +467,7 @@ lazy_static! {
 #[cfg(test)]
 mod tests {
     use crate::scan_text;
+    use crate::test_fixtures::{body, ALNUM};
     use crate::types::SecretKind;
 
     fn matches_github_app(text: &str) -> bool {
@@ -477,25 +478,24 @@ mod tests {
 
     #[test]
     fn ghs_legacy_36_char_token_matches() {
-        let token = "ghs_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789";
+        let token = format!("ghs_{}", body(ALNUM, 36));
         assert_eq!(token.len(), 40);
-        assert!(matches_github_app(token));
+        assert!(matches_github_app(&token));
     }
 
     #[test]
     fn ghs_new_stateless_long_token_matches() {
         // New stateless format is ~520 chars; build one inside the 400–600 window.
-        let body: String = std::iter::repeat('A').take(516).collect();
-        let token = format!("ghs_{body}");
+        let token = format!("ghs_{}", body(ALNUM, 516));
         assert_eq!(token.len(), 520);
         assert!(matches_github_app(&token));
     }
 
     #[test]
-    fn ghs_token_with_disallowed_length_does_not_match() {
-        // 200 chars after the prefix is neither 36 nor in 400–600 — must not match.
-        let body: String = std::iter::repeat('A').take(200).collect();
-        let token = format!("ghs_{body}");
+    fn ghs_mid_length_token_does_not_match() {
+        // 200 chars after the prefix is neither 36 nor in 400–600, so the full
+        // token must not match (the regex may still fire on a 36-char slice).
+        let token = format!("ghs_{}", body(ALNUM, 200));
         assert!(!matches_github_app(&token));
     }
 }
