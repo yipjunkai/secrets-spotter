@@ -17,7 +17,7 @@ lazy_static! {
 
         // AWS Access Key ID
         SecretPattern {
-            regex: Regex::new(r"AKIA[0-9A-Z]{16}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)AKIA[0-9A-Z]{16}(?-u:\b)").unwrap(),
             prefixes: &["AKIA"],
             kind: SecretKind::AwsAccessKey,
             label: "AWS Access Key ID",
@@ -25,7 +25,7 @@ lazy_static! {
         },
         // AWS Temporary Access Key (STS)
         SecretPattern {
-            regex: Regex::new(r"ASIA[0-9A-Z]{16}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)ASIA[0-9A-Z]{16}(?-u:\b)").unwrap(),
             prefixes: &["ASIA"],
             kind: SecretKind::AwsTempAccessKey,
             label: "AWS Temporary Access Key (STS)",
@@ -33,7 +33,7 @@ lazy_static! {
         },
         // GitHub Personal Access Token
         SecretPattern {
-            regex: Regex::new(r"ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)ghp_[A-Za-z0-9]{36}(?-u:\b)|(?-u:\b)github_pat_[A-Za-z0-9_]{82}(?-u:\b)").unwrap(),
             prefixes: &["ghp_", "github_pat_"],
             kind: SecretKind::GitHubToken,
             label: "GitHub Personal Access Token",
@@ -41,7 +41,7 @@ lazy_static! {
         },
         // GitHub OAuth Access Token
         SecretPattern {
-            regex: Regex::new(r"gho_[A-Za-z0-9]{36}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)gho_[A-Za-z0-9]{36}(?-u:\b)").unwrap(),
             prefixes: &["gho_"],
             kind: SecretKind::GitHubOAuthToken,
             label: "GitHub OAuth Token",
@@ -49,7 +49,7 @@ lazy_static! {
         },
         // GitHub App Tokens — user-to-server (ghu_) and refresh (ghr_) are fixed 36 chars
         SecretPattern {
-            regex: Regex::new(r"gh[ur]_[A-Za-z0-9]{36}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)gh[ur]_[A-Za-z0-9]{36}(?-u:\b)").unwrap(),
             prefixes: &["ghu_", "ghr_"],
             kind: SecretKind::GitHubAppToken,
             label: "GitHub App Token",
@@ -57,26 +57,56 @@ lazy_static! {
         },
         // GitHub App installation tokens — legacy 36-char OR new stateless ~520-char format
         SecretPattern {
-            regex: Regex::new(r"ghs_(?:[A-Za-z0-9]{400,600}|[A-Za-z0-9]{36})").unwrap(),
+            // New stateless tokens are `ghs_<id>_<base64url-JWT>` (~520 chars,
+            // containing '.', '-', '_'); the legacy form is 36 base62 chars.
+            regex: Regex::new(r"(?-u:\b)ghs_[A-Za-z0-9._-]{36,}").unwrap(),
             prefixes: &["ghs_"],
             kind: SecretKind::GitHubAppToken,
             label: "GitHub App Installation Token",
             severity: Severity::Critical,
         },
+        // GitHub Token (legacy) — pre-2021 PATs / OAuth tokens were 40-char
+        // lowercase hex with no prefix. Keyword-gated because a bare 40-hex is a
+        // SHA-1; these tokens were never bulk-revoked, so they may still be live.
+        SecretPattern {
+            regex: Regex::new(
+                r#"(?i)(?-u:\b)(?:github|gh)_?(?:token|pat|key|secret|api_?key|oauth|access_?token)\s*[:=]\s*['\x22]?([0-9a-f]{40})['\x22]?"#
+            ).unwrap(),
+            prefixes: &[],
+            kind: SecretKind::GitHubToken,
+            label: "GitHub Token (legacy)",
+            severity: Severity::Critical,
+        },
         // Private Key (PEM)
         SecretPattern {
             regex: Regex::new(
-                r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+                r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----"
             ).unwrap(),
             prefixes: &["-----BEGIN"],
             kind: SecretKind::PrivateKeyBlock,
             label: "Private Key (PEM)",
             severity: Severity::Critical,
         },
+        // SSH2 / RFC4716 private key armor — four dashes + spaces (unlike PEM).
+        SecretPattern {
+            regex: Regex::new(r"---- BEGIN SSH2 (?:ENCRYPTED )?PRIVATE KEY ----").unwrap(),
+            prefixes: &["---- BEGIN SSH2"],
+            kind: SecretKind::PrivateKeyBlock,
+            label: "Private Key (SSH2)",
+            severity: Severity::Critical,
+        },
+        // PuTTY private key file (PPK) header — v2 and v3.
+        SecretPattern {
+            regex: Regex::new(r"PuTTY-User-Key-File-[23]:").unwrap(),
+            prefixes: &["PuTTY-User-Key-File-"],
+            kind: SecretKind::PrivateKeyBlock,
+            label: "Private Key (PuTTY PPK)",
+            severity: Severity::Critical,
+        },
         // Password in URL
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:https?|ftp|ssh|mysql|postgresql|postgres|redis|mongodb|amqp|smtp|mariadb|cockroachdb)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{8,})@[A-Za-z][A-Za-z0-9.-]*\.[A-Za-z]{2,}"#
+                r#"(?i)(?:https?|ftp|ssh|mysql|postgresql|postgres|redis|mongodb|amqp|smtp|mariadb|cockroachdb)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{8,})@(?:\[[0-9A-Fa-f:]+\]|[A-Za-z0-9._-]+)(?::[0-9]+)?"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::PasswordInUrl,
@@ -149,13 +179,23 @@ lazy_static! {
             label: "Stripe Webhook Secret",
             severity: Severity::Critical,
         },
-        // Twilio API Key
+        // Twilio API Key SID — `SK` + 32 hex is the key's public SID, not the
+        // secret itself; word-bounded so it doesn't fire inside words like "RISK".
         SecretPattern {
-            regex: Regex::new(r"SK[0-9a-fA-F]{32}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)SK[0-9a-fA-F]{32}(?-u:\b)").unwrap(),
             prefixes: &["SK"],
             kind: SecretKind::TwilioKey,
-            label: "Twilio API Key",
-            severity: Severity::Critical,
+            label: "Twilio API Key SID",
+            severity: Severity::High,
+        },
+        // Twilio Account SID — `AC` + 32 hex. An identifier (paired with the
+        // auth token), so Low severity; word-bounded to limit hex false positives.
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)AC[0-9a-f]{32}(?-u:\b)").unwrap(),
+            prefixes: &["AC"],
+            kind: SecretKind::TwilioKey,
+            label: "Twilio Account SID",
+            severity: Severity::Low,
         },
         // SendGrid API Key
         SecretPattern {
@@ -167,23 +207,26 @@ lazy_static! {
         },
         // Discord Bot Token
         SecretPattern {
-            regex: Regex::new(r"[MN][A-Za-z0-9_-]{17,28}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,40}").unwrap(),
+            regex: Regex::new(r"[MNO][A-Za-z0-9_-]{17,28}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,40}").unwrap(),
             prefixes: &[],
             kind: SecretKind::DiscordToken,
             label: "Discord Bot Token",
             severity: Severity::Critical,
         },
-        // Mailgun API Key
+        // Mailgun API Key — gated on a "mailgun" keyword so it doesn't fire on
+        // unrelated `key-<hash>` strings (cache keys, asset digests, etc.).
         SecretPattern {
-            regex: Regex::new(r"key-[0-9a-zA-Z]{32}").unwrap(),
-            prefixes: &["key-"],
+            regex: Regex::new(
+                r#"(?i)mailgun[a-z0-9_\-]*\s*[:=]\s*['\x22]?(key-[0-9a-zA-Z]{32})['\x22]?"#
+            ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::MailgunApiKey,
             label: "Mailgun API Key",
-            severity: Severity::Critical,
+            severity: Severity::High,
         },
         // npm Access Token
         SecretPattern {
-            regex: Regex::new(r"npm_[A-Za-z0-9]{36}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)npm_[A-Za-z0-9]{36}(?-u:\b)").unwrap(),
             prefixes: &["npm_"],
             kind: SecretKind::NpmToken,
             label: "npm Access Token",
@@ -191,7 +234,8 @@ lazy_static! {
         },
         // PyPI API Token
         SecretPattern {
-            regex: Regex::new(r"pypi-[A-Za-z0-9_-]{50,}").unwrap(),
+            // Always begins with the constant macaroon header AgEIcHlwaS5vcmc.
+            regex: Regex::new(r"pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,}").unwrap(),
             prefixes: &["pypi-"],
             kind: SecretKind::PyPiToken,
             label: "PyPI API Token",
@@ -199,26 +243,51 @@ lazy_static! {
         },
         // Shopify Access Token
         SecretPattern {
-            regex: Regex::new(r"shp(?:at|ss|ca|pa)_[0-9a-fA-F]{32}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)shp(?:at|ss|ca|pa)_[0-9a-fA-F]{32}(?-u:\b)").unwrap(),
             prefixes: &["shp"],
             kind: SecretKind::ShopifyToken,
             label: "Shopify Token",
             severity: Severity::Critical,
         },
-        // Square Access Token
+        // Square Access Token — modern EAAA-prefixed format.
         SecretPattern {
-            regex: Regex::new(r"sq0atp-[A-Za-z0-9_-]{22}").unwrap(),
-            prefixes: &["sq0atp-"],
+            regex: Regex::new(r"EAAA[A-Za-z0-9_-]{60}").unwrap(),
+            prefixes: &["EAAA"],
             kind: SecretKind::SquareAccessToken,
             label: "Square Access Token",
             severity: Severity::Critical,
         },
+        // Square Access Token (legacy) — older sq0atp- personal access token.
+        SecretPattern {
+            regex: Regex::new(r"sq0atp-[A-Za-z0-9_-]{22}").unwrap(),
+            prefixes: &["sq0atp-"],
+            kind: SecretKind::SquareAccessToken,
+            label: "Square Access Token (legacy)",
+            severity: Severity::Critical,
+        },
+        // Square OAuth Secret (legacy) — sq0csp- (live) / sq0csb- (sandbox).
+        SecretPattern {
+            regex: Regex::new(r"(?:sandbox-)?sq0c[a-z]{2}-[0-9A-Za-z_-]{40,50}").unwrap(),
+            prefixes: &["sq0c"],
+            kind: SecretKind::SquareAccessToken,
+            label: "Square OAuth Secret (legacy)",
+            severity: Severity::Critical,
+        },
         // Anthropic API Key
         SecretPattern {
-            regex: Regex::new(r"sk-ant-api03-[A-Za-z0-9_-]{93}").unwrap(),
-            prefixes: &["sk-ant-api03-"],
+            regex: Regex::new(r"sk-ant-(?:api03|admin01)-[A-Za-z0-9_-]{93}AA").unwrap(),
+            prefixes: &["sk-ant-api03-", "sk-ant-admin01-"],
             kind: SecretKind::AnthropicApiKey,
             label: "Anthropic API Key",
+            severity: Severity::Critical,
+        },
+        // Anthropic OAuth Token — issued by `claude setup-token`; unlike api03
+        // it has no trailing AA and a longer, variable body.
+        SecretPattern {
+            regex: Regex::new(r"sk-ant-oat01-[A-Za-z0-9_-]{86,}").unwrap(),
+            prefixes: &["sk-ant-oat01-"],
+            kind: SecretKind::AnthropicApiKey,
+            label: "Anthropic OAuth Token",
             severity: Severity::Critical,
         },
         // OpenAI API Key (legacy format)
@@ -226,20 +295,21 @@ lazy_static! {
             regex: Regex::new(r"sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}").unwrap(),
             prefixes: &["sk-"],
             kind: SecretKind::OpenAiApiKey,
-            label: "OpenAI API Key",
+            label: "OpenAI API Key (legacy)",
             severity: Severity::Critical,
         },
         // OpenAI API Key (new project/service account format)
         SecretPattern {
-            regex: Regex::new(r"sk-(?:proj|svcacct)-[A-Za-z0-9_-]{20,}").unwrap(),
-            prefixes: &["sk-proj-", "sk-svcacct-"],
+            // Modern keys embed a literal T3BlbkFJ marker mid-body.
+            regex: Regex::new(r"sk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}T3BlbkFJ[A-Za-z0-9_-]{20,}").unwrap(),
+            prefixes: &["sk-proj-", "sk-svcacct-", "sk-admin-"],
             kind: SecretKind::OpenAiApiKey,
             label: "OpenAI API Key",
             severity: Severity::Critical,
         },
         // DigitalOcean Token
         SecretPattern {
-            regex: Regex::new(r"dop_v1_[0-9a-f]{64}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)dop_v1_[0-9a-f]{64}(?-u:\b)").unwrap(),
             prefixes: &["dop_v1_"],
             kind: SecretKind::DigitalOceanToken,
             label: "DigitalOcean Token",
@@ -247,7 +317,7 @@ lazy_static! {
         },
         // Linear API Key
         SecretPattern {
-            regex: Regex::new(r"lin_api_[A-Za-z0-9]{40}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)lin_api_[A-Za-z0-9]{40}(?-u:\b)").unwrap(),
             prefixes: &["lin_api_"],
             kind: SecretKind::LinearApiKey,
             label: "Linear API Key",
@@ -263,10 +333,18 @@ lazy_static! {
         },
         // PostHog Personal API Key — full account access
         SecretPattern {
-            regex: Regex::new(r"phx_[A-Za-z0-9]{30,}").unwrap(),
+            regex: Regex::new(r"phx_[A-Za-z0-9_]{43}").unwrap(),
             prefixes: &["phx_"],
             kind: SecretKind::PostHogPersonalKey,
             label: "PostHog Personal API Key",
+            severity: Severity::Critical,
+        },
+        // PostHog secret prefixes — phs_ (feature-flag secure), pha_/phr_ (OAuth).
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)ph[sar]_[A-Za-z0-9_]{30,}").unwrap(),
+            prefixes: &["phs_", "pha_", "phr_"],
+            kind: SecretKind::PostHogPersonalKey,
+            label: "PostHog Secret Key",
             severity: Severity::Critical,
         },
         // GitLab Personal Access Token
@@ -277,20 +355,50 @@ lazy_static! {
             label: "GitLab Personal Access Token",
             severity: Severity::Critical,
         },
-        // Cloudflare API Token
+        // Cloudflare API Token — real tokens have no fixed prefix, so gate on a
+        // "cloudflare" keyword near a 37-40 char value.
         SecretPattern {
-            regex: Regex::new(r"cf_[A-Za-z0-9_\-]{37}").unwrap(),
-            prefixes: &["cf_"],
+            regex: Regex::new(
+                r#"(?i)cloudflare[a-z0-9_\-]*\s*[:=]\s*['\x22]?([A-Za-z0-9_\-]{37,40})['\x22]?"#
+            ).unwrap(),
+            prefixes: &[],
             kind: SecretKind::CloudflareApiToken,
             label: "Cloudflare API Token",
             severity: Severity::Critical,
         },
-        // Supabase Service Key
+        // Cloudflare Origin CA Key — fixed `v1.0-<24hex>-<146hex>` structure.
         SecretPattern {
-            regex: Regex::new(r"sbp_[a-f0-9]{40}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)v1\.0-[0-9a-f]{24}-[0-9a-f]{146}(?-u:\b)").unwrap(),
+            prefixes: &["v1.0-"],
+            kind: SecretKind::CloudflareApiToken,
+            label: "Cloudflare Origin CA Key",
+            severity: Severity::Critical,
+        },
+        // Cloudflare prefixed tokens (2026) — cfat_ (account), cfut_ (user),
+        // cfk_ (Global API Key): distinct prefix + 40-char body + checksum.
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)cf(?:at|ut|k)_[A-Za-z0-9]{40,60}(?-u:\b)").unwrap(),
+            prefixes: &["cfat_", "cfut_", "cfk_"],
+            kind: SecretKind::CloudflareApiToken,
+            label: "Cloudflare API Token",
+            severity: Severity::Critical,
+        },
+        // Supabase Access Token — `sbp_` is the personal/management API token;
+        // the service-role key is a JWT (caught by the JWT pattern instead).
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)sbp_[a-f0-9]{40}(?-u:\b)").unwrap(),
             prefixes: &["sbp_"],
-            kind: SecretKind::SupabaseServiceKey,
-            label: "Supabase Service Key",
+            kind: SecretKind::SupabaseAccessToken,
+            label: "Supabase Access Token",
+            severity: Severity::Critical,
+        },
+        // Supabase Secret Key — `sb_secret_` (2025 replacement for the
+        // service_role JWT). The `sb_publishable_` sibling is public, so skipped.
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)sb_secret_[A-Za-z0-9_-]{31,36}").unwrap(),
+            prefixes: &["sb_secret_"],
+            kind: SecretKind::SupabaseSecretKey,
+            label: "Supabase Secret Key",
             severity: Severity::Critical,
         },
         // GCP OAuth Access Token
@@ -309,25 +417,48 @@ lazy_static! {
             label: "Hashicorp Vault Token",
             severity: Severity::Critical,
         },
+        // HashiCorp Vault Token (legacy) — pre-1.10 service tokens use the `s.`
+        // prefix; keyword-gated on "vault" since a bare `s.`+24 is very noisy.
+        SecretPattern {
+            regex: Regex::new(
+                r#"(?i)vault[a-z0-9_\-]*\s*[:=]\s*['\x22]?(s\.[A-Za-z0-9]{24})['\x22]?"#
+            ).unwrap(),
+            prefixes: &[],
+            kind: SecretKind::HashicorpVaultToken,
+            label: "HashiCorp Vault Token (legacy)",
+            severity: Severity::Critical,
+        },
         // Doppler Token
         SecretPattern {
-            regex: Regex::new(r"dp\.(?:st|sa|ct)\.[A-Za-z0-9_\-]{40,}").unwrap(),
+            regex: Regex::new(r"dp\.(?:st|sa|ct|pt|scim|audit)\.[A-Za-z0-9]{40,44}").unwrap(),
             prefixes: &["dp."],
             kind: SecretKind::DopplerToken,
             label: "Doppler Token",
             severity: Severity::Critical,
         },
-        // Vercel Token
+        // Vercel Token — real tokens use vcp_/vci_/vca_/vcr_/vck_ prefixes
+        // (introduced 2026 for secret scanning); the old `vercel_` never existed.
         SecretPattern {
-            regex: Regex::new(r"vercel_[A-Za-z0-9_\-]{24,}").unwrap(),
-            prefixes: &["vercel_"],
+            regex: Regex::new(r"(?-u:\b)vc[pirak]_[A-Za-z0-9]{24,}(?-u:\b)").unwrap(),
+            prefixes: &["vcp_", "vci_", "vca_", "vcr_", "vck_"],
             kind: SecretKind::VercelToken,
             label: "Vercel Token",
             severity: Severity::Critical,
         },
+        // Vercel Token (legacy) — pre-2026 tokens were bare 24-char alphanumeric,
+        // detected via a "vercel" keyword (still accepted by the API).
+        SecretPattern {
+            regex: Regex::new(
+                r#"(?i)vercel[a-z0-9_\-]*\s*[:=]\s*['\x22]?([A-Za-z0-9]{24})['\x22]?"#
+            ).unwrap(),
+            prefixes: &[],
+            kind: SecretKind::VercelToken,
+            label: "Vercel Token (legacy)",
+            severity: Severity::Critical,
+        },
         // Databricks Token
         SecretPattern {
-            regex: Regex::new(r"dapi[0-9a-f]{32}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)dapi[0-9a-f]{32}(?-u:\b)").unwrap(),
             prefixes: &["dapi"],
             kind: SecretKind::DatabricksToken,
             label: "Databricks Token",
@@ -335,7 +466,7 @@ lazy_static! {
         },
         // Grafana API Key / Service Account
         SecretPattern {
-            regex: Regex::new(r"glsa_[A-Za-z0-9]{32}_[A-Fa-f0-9]{8}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)glsa_[A-Za-z0-9]{32}_[A-Fa-f0-9]{8}(?-u:\b)").unwrap(),
             prefixes: &["glsa_"],
             kind: SecretKind::GrafanaApiKey,
             label: "Grafana API Key",
@@ -343,7 +474,7 @@ lazy_static! {
         },
         // Pulumi Access Token
         SecretPattern {
-            regex: Regex::new(r"pul-[A-Za-z0-9]{40}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)pul-[a-f0-9]{40}(?-u:\b)").unwrap(),
             prefixes: &["pul-"],
             kind: SecretKind::PulumiAccessToken,
             label: "Pulumi Access Token",
@@ -351,7 +482,7 @@ lazy_static! {
         },
         // Hugging Face Access Token
         SecretPattern {
-            regex: Regex::new(r"hf_[A-Za-z0-9]{36,}").unwrap(),
+            regex: Regex::new(r"(?-u:\b)hf_[A-Za-z0-9]{34,}(?-u:\b)").unwrap(),
             prefixes: &["hf_"],
             kind: SecretKind::HuggingFaceToken,
             label: "Hugging Face Access Token",
@@ -467,7 +598,7 @@ lazy_static! {
 #[cfg(test)]
 mod tests {
     use crate::scan_text;
-    use crate::test_fixtures::{body, ALNUM};
+    use crate::test_fixtures::{body, ALNUM, DIGITS, URL_SAFE};
     use crate::types::SecretKind;
 
     fn matches_github_app(text: &str) -> bool {
@@ -485,17 +616,23 @@ mod tests {
 
     #[test]
     fn ghs_new_stateless_long_token_matches() {
-        // New stateless format is ~520 chars; build one inside the 400–600 window.
-        let token = format!("ghs_{}", body(ALNUM, 516));
-        assert_eq!(token.len(), 520);
+        // New stateless format is `ghs_<id>_<base64url JWT>` (~520 chars) and
+        // contains '.', '-', '_' — the old [A-Za-z0-9]{400,600} branch rejected it.
+        let token = format!(
+            "ghs_{}_{}.{}.{}",
+            body(DIGITS, 5),
+            body(URL_SAFE, 180),
+            body(URL_SAFE, 180),
+            body(URL_SAFE, 140)
+        );
+        assert!(token.len() > 500);
         assert!(matches_github_app(&token));
     }
 
     #[test]
-    fn ghs_mid_length_token_does_not_match() {
-        // 200 chars after the prefix is neither 36 nor in 400–600, so the full
-        // token must not match (the regex may still fire on a 36-char slice).
-        let token = format!("ghs_{}", body(ALNUM, 200));
+    fn ghs_too_short_token_does_not_match() {
+        // Fewer than 36 chars after the prefix must not match.
+        let token = format!("ghs_{}", body(ALNUM, 20));
         assert!(!matches_github_app(&token));
     }
 }
