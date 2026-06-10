@@ -66,11 +66,27 @@ async function initWasm() {
 
 const badgeSettleTimers = new Map();
 
+// Fallback timers that clear the "..." loading badge if no scan ever completes
+// for a tab (a page with no DOM/network activity, or where content.js failed to
+// inject) — otherwise the badge sticks on "..." forever.
+const loadingBadgeTimers = new Map();
+const LOADING_BADGE_TIMEOUT = 8000;
+
+function clearLoadingBadge(tabId) {
+  const timer = loadingBadgeTimers.get(tabId);
+  if (timer) {
+    clearTimeout(timer);
+    loadingBadgeTimers.delete(tabId);
+  }
+}
+
 function significantCount(findings) {
   return findings.filter(f => f.severity === 'Critical' || f.severity === 'High').length;
 }
 
 function updateBadge(tabId, count) {
+  // A scan completed, so the tab is past "loading" — cancel the fallback timer.
+  clearLoadingBadge(tabId);
   if (count > 0) {
     // Immediately show the count
     clearTimeout(badgeSettleTimers.get(tabId));
@@ -96,7 +112,7 @@ function tabKey(tabId) {
 async function getTabData(tabId) {
   const key = tabKey(tabId);
   const result = await chrome.storage.session.get(key);
-  return result[key] || { findings: [], scannedUrls: [], url: '', scanned: 0, skipped: 0, sources: {} };
+  return result[key] || { findings: [], scannedUrls: [], url: '', scanned: 0, skipped: 0, sources: {}, documentId: null };
 }
 
 async function setTabData(tabId, data) {
@@ -209,6 +225,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         await withTabLock(tabId, async () => {
           const tabData = await getTabData(tabId);
+
+          // Drop scans from a document that a later navigation already
+          // superseded, so stale findings aren't attributed to the new page.
+          if (tabData.documentId && sender.documentId &&
+              tabData.documentId !== sender.documentId) {
+            return;
+          }
+
           tabData.url = tabData.url || message.url;
 
           // Deduplicate via Rust
@@ -284,13 +308,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Reset findings on navigation — show loading badge until first scan completes
 chrome.webNavigation?.onCommitted?.addListener((details) => {
-  if (details.frameId === 0) {
-    removeTabData(details.tabId);
-    clearTimeout(badgeSettleTimers.get(details.tabId));
-    badgeSettleTimers.delete(details.tabId);
-    chrome.action.setBadgeText({ text: '...', tabId: details.tabId }).catch(() => {});
-    chrome.action.setBadgeBackgroundColor({ color: '#888', tabId: details.tabId }).catch(() => {});
-  }
+  if (details.frameId !== 0) return;
+  const tabId = details.tabId;
+
+  // Reset to a fresh record stamped with the new document's id; scans that
+  // arrive late from the previous document are dropped in the SCAN_TEXT handler.
+  withTabLock(tabId, () =>
+    setTabData(tabId, {
+      findings: [], scannedUrls: [], url: '', scanned: 0, skipped: 0,
+      sources: {}, documentId: details.documentId,
+    })
+  );
+
+  clearTimeout(badgeSettleTimers.get(tabId));
+  badgeSettleTimers.delete(tabId);
+  chrome.action.setBadgeText({ text: '...', tabId }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ color: '#888', tabId }).catch(() => {});
+
+  // Clear the loading badge if no scan completes within the timeout.
+  clearLoadingBadge(tabId);
+  loadingBadgeTimers.set(tabId, setTimeout(() => {
+    loadingBadgeTimers.delete(tabId);
+    chrome.action.setBadgeText({ text: '', tabId }).catch(() => {});
+  }, LOADING_BADGE_TIMEOUT));
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -298,4 +338,5 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabLocks.delete(tabId);
   clearTimeout(badgeSettleTimers.get(tabId));
   badgeSettleTimers.delete(tabId);
+  clearLoadingBadge(tabId);
 });
