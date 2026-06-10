@@ -35,15 +35,6 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "wasm/secrets_spotter_wasm_bg.wasm",
-        "wasm/secrets_spotter_wasm.js"
-      ],
-      "matches": ["<all_urls>"]
-    }
-  ],
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
