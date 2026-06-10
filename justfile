@@ -17,6 +17,12 @@ build-wasm:
 test:
     cargo test --workspace
 
+# Dogfood: scan our own source with the CLI — must find nothing.
+# Guards the test-fixture policy: secret-shaped strings must never appear
+# as contiguous literals in source (see crates/core/src/test_fixtures.rs).
+scan-self:
+    cargo run -q -p secrets-spotter -- .
+
 # Check formatting and lints
 lint:
     cargo fmt --all -- --check

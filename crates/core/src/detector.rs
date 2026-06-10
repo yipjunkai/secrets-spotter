@@ -294,3 +294,268 @@ impl SecretDetector {
         result
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_fixtures::{body, opaque, tok, UPPER_NUM, URL_SAFE};
+    use crate::types::{SecretFinding, SecretKind, Severity};
+    use rstest::rstest;
+
+    // ── shannon_entropy ──────────────────────────────────────────────
+
+    #[test]
+    fn entropy_empty_string() {
+        assert_eq!(SecretDetector::shannon_entropy(""), 0.0);
+    }
+
+    #[rstest]
+    #[case("aaaaaaa", 0.0)]
+    #[case("ab", 1.0)]
+    #[case("aabb", 1.0)]
+    fn entropy_known_values(#[case] input: &str, #[case] expected: f64) {
+        let e = SecretDetector::shannon_entropy(input);
+        assert!(
+            (e - expected).abs() < 0.01,
+            "entropy({input}) = {e}, expected {expected}"
+        );
+    }
+
+    #[test]
+    fn entropy_high_for_random_string() {
+        // A realistic secret-like string should have high entropy
+        let e = SecretDetector::shannon_entropy(&opaque(21));
+        assert!(e > 3.5, "expected high entropy, got {e}");
+    }
+
+    #[test]
+    fn entropy_low_for_repetitive() {
+        let e = SecretDetector::shannon_entropy("abcabcabcabc");
+        assert!(
+            e < 2.0,
+            "expected low entropy for repetitive string, got {e}"
+        );
+    }
+
+    // ── redact ───────────────────────────────────────────────────────
+
+    #[rstest]
+    #[case("abc", "***")]
+    #[case("12345678", "********")]
+    #[case("short", "*****")]
+    fn redact_short_strings(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(SecretDetector::redact(input), expected);
+    }
+
+    #[rstest]
+    #[case("123456789", "1234...6789")]
+    #[case(&format!("sk_live_{}", "abcdefghij"), "sk_l...ghij")]
+    fn redact_long_strings(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(SecretDetector::redact(input), expected);
+    }
+
+    // ── is_false_positive ────────────────────────────────────────────
+    // Receives the extracted VALUE (capture group), not the full match.
+
+    #[rstest]
+    #[case("changeme")]
+    #[case("TODO")]
+    #[case("placeholder")]
+    #[case("undefined")]
+    #[case("your-api-key")]
+    fn fp_generic_placeholder_values(#[case] value: &str) {
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::GenericApiKey,
+            value
+        ));
+    }
+
+    #[rstest]
+    #[case("my-variable-name")]
+    #[case("some-plain-words")]
+    fn fp_generic_plain_words(#[case] value: &str) {
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::GenericApiKey,
+            value
+        ));
+    }
+
+    #[rstest]
+    #[case("https://example.com/api")]
+    #[case("/usr/local/config")]
+    #[case("./config.json")]
+    fn fp_generic_urls_and_paths(#[case] value: &str) {
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::GenericApiKey,
+            value
+        ));
+    }
+
+    #[test]
+    fn fp_generic_camel_case_shaped_value_filtered() {
+        // Alternating-case strings decompose into camelCase humps, so the
+        // CODE_IDENTIFIER filter rejects them even when they look random.
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::GenericApiKey,
+            "aB3xZ9qW7mK2pL5nR8vJ"
+        ));
+    }
+
+    #[test]
+    fn fp_generic_real_key_not_filtered() {
+        // Digit-led opaque value defeats every identifier shape
+        assert!(!SecretDetector::is_false_positive(
+            &SecretKind::GenericApiKey,
+            &opaque(20)
+        ));
+    }
+
+    #[test]
+    fn fp_high_entropy_low_entropy_filtered() {
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::HighEntropyString,
+            "abcabcabcabcabcabcabcabcabcabcabcabc"
+        ));
+    }
+
+    #[test]
+    fn fp_high_entropy_single_char_class_filtered() {
+        // Only lowercase — fails the 2-of-3 character-class requirement
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::HighEntropyString,
+            "qwertyuiopasdfghjklzxcvbnmqwerty"
+        ));
+    }
+
+    #[test]
+    fn fp_high_entropy_valid_not_filtered() {
+        assert!(!SecretDetector::is_false_positive(
+            &SecretKind::HighEntropyString,
+            &opaque(32)
+        ));
+    }
+
+    #[test]
+    fn fp_bearer_token_strips_prefix_and_rejects_identifiers() {
+        // The strip_prefix branch is defensive (scan passes capture group 1,
+        // which excludes "Bearer "); this documents the intended behavior.
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::BearerToken,
+            "Bearer myAuthTokenValueHandler"
+        ));
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::BearerToken,
+            "myAuthTokenValueHandler"
+        ));
+        assert!(!SecretDetector::is_false_positive(
+            &SecretKind::BearerToken,
+            &opaque(24)
+        ));
+    }
+
+    #[test]
+    fn fp_known_prefix_never_filtered() {
+        // Known-prefix patterns bypass false-positive checks entirely
+        assert!(!SecretDetector::is_false_positive(
+            &SecretKind::AwsAccessKey,
+            &tok("AKIA", UPPER_NUM, 16)
+        ));
+    }
+
+    // ── deduplicate ──────────────────────────────────────────────────
+
+    fn make_finding(start: usize, end: usize, severity: Severity) -> SecretFinding {
+        SecretFinding {
+            kind: SecretKind::GenericApiKey,
+            label: "test".to_string(),
+            matched_text: "redacted".to_string(),
+            full_match: format!("match_{start}_{end}"),
+            start,
+            end,
+            severity,
+        }
+    }
+
+    #[test]
+    fn dedup_overlapping_keeps_higher_severity() {
+        let mut findings = vec![
+            make_finding(0, 20, Severity::Medium),
+            make_finding(10, 30, Severity::Critical),
+        ];
+        SecretDetector::deduplicate(&mut findings);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].severity, Severity::Critical);
+    }
+
+    #[test]
+    fn dedup_non_overlapping_preserves_both() {
+        let mut findings = vec![
+            make_finding(0, 10, Severity::High),
+            make_finding(20, 30, Severity::Low),
+        ];
+        SecretDetector::deduplicate(&mut findings);
+        assert_eq!(findings.len(), 2);
+    }
+
+    // ── merge_findings ───────────────────────────────────────────────
+
+    #[test]
+    fn merge_deduplicates_by_full_match() {
+        let existing = vec![make_finding(0, 10, Severity::Medium)];
+        let new = vec![make_finding(0, 10, Severity::Critical)];
+        let merged = SecretDetector::merge_findings(existing, new);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].severity, Severity::Critical);
+    }
+
+    #[test]
+    fn merge_keeps_higher_existing_severity() {
+        let existing = vec![make_finding(0, 10, Severity::Critical)];
+        let new = vec![make_finding(0, 10, Severity::Low)];
+        let merged = SecretDetector::merge_findings(existing, new);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].severity, Severity::Critical);
+    }
+
+    #[test]
+    fn merge_different_full_match_preserved() {
+        let existing = vec![make_finding(0, 10, Severity::High)];
+        let new = vec![make_finding(20, 30, Severity::High)];
+        let merged = SecretDetector::merge_findings(existing, new);
+        assert_eq!(merged.len(), 2);
+    }
+
+    // ── scan (integration) ───────────────────────────────────────────
+
+    #[test]
+    fn scan_detects_aws_key() {
+        let text = format!("my key is {} here", tok("AKIA", UPPER_NUM, 16));
+        let findings = SecretDetector::scan(&text);
+        assert_eq!(findings.len(), 1);
+        assert!(matches!(findings[0].kind, SecretKind::AwsAccessKey));
+    }
+
+    #[test]
+    fn scan_clean_text_returns_empty() {
+        let findings = SecretDetector::scan("Hello, this is perfectly normal text.");
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn scan_skips_oversized_match() {
+        // JWT's last segment is unbounded — inflate it past MAX_MATCH_LEN
+        let long_jwt = format!(
+            "eyJ{}.eyJ{}.{}",
+            body(URL_SAFE, 12),
+            body(URL_SAFE, 12),
+            "A".repeat(MAX_MATCH_LEN)
+        );
+        let findings = SecretDetector::scan(&long_jwt);
+        assert!(
+            !findings
+                .iter()
+                .any(|f| matches!(f.kind, SecretKind::JwtToken)),
+            "oversized match should be skipped"
+        );
+    }
+}
