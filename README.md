@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/github/v/release/yipjunkai/secrets-spotter)](https://github.com/yipjunkai/secrets-spotter/releases/latest)
 [![License](https://img.shields.io/github/license/yipjunkai/secrets-spotter)](#-license)
 
-**A CLI tool and Chrome extension that detects exposed API keys, tokens, and other secrets in files, stdin, web pages, and network traffic.** Rust core with 51 detection patterns. Fully local — no data leaves your machine or browser.
+**A CLI tool and Chrome extension that detects exposed API keys, tokens, and other secrets in files, stdin, web pages, and network traffic.** Rust core with 52 detection patterns. Fully local — no data leaves your machine or browser.
 
 ```text
 $ secrets-spotter src/ .env
@@ -88,7 +88,7 @@ Once the Chrome extension is loaded, browse any website. The icon badge shows th
 
 - **CLI tool** for scanning files, directories, and stdin — CI/CD ready with JSON and SARIF output
 - **Chrome extension** for real-time scanning of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
-- **51 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 45 more
+- **52 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 46 more
 - **False-positive filtering** — Shannon entropy, placeholder detection, code-identifier rejection, URL/path exclusion
 - **JWT decoder in popup** — expandable header / payload JSON view for detected JWTs
 - **SPA-aware** — extension re-scans on `pushState`, `replaceState`, `popstate`, and `hashchange` navigations
@@ -124,7 +124,7 @@ secrets-spotter/
 │   │   └── src/
 │   │       ├── lib.rs          # Public API (scan_text, merge_findings)
 │   │       ├── detector.rs     # Detection engine + false-positive filtering
-│   │       ├── patterns.rs     # 51 secret regex patterns
+│   │       ├── patterns.rs     # 52 secret regex patterns
 │   │       ├── types.rs        # SecretKind, Severity, SecretFinding
 │   │       ├── filter.rs       # URL/content filtering (skip CDNs, media)
 │   │       ├── cookies.rs      # Cookie parsing utility
@@ -200,9 +200,9 @@ To enable: set `SCAN_EXTERNAL_RESOURCES = true` in `extension/content/intercepto
 
 ## 🔍 Detection patterns
 
-51 patterns across three tiers.
+52 patterns across three tiers.
 
-### Known-prefix patterns (42)
+### Known-prefix patterns (41)
 
 Match by a fixed prefix or structure baked into the credential itself — highest confidence.
 
@@ -224,37 +224,36 @@ Match by a fixed prefix or structure baked into the credential itself — highes
 | Stripe Publishable | `pk_(live\|test)_`                                             |
 | Stripe Restricted  | `rk_(live\|test)_`                                             |
 | Stripe Webhook     | `whsec_`                                                       |
-| Twilio             | `SK` + 32 hex chars                                            |
+| Twilio API Key SID | `SK` + 32 hex chars                                            |
 | SendGrid           | `SG.`                                                          |
-| Discord Bot        | `[MN]...(dot-separated base64)`                                |
-| Mailgun            | `key-`                                                         |
+| Discord Bot        | `[MNO]...(dot-separated base64)`                               |
 | npm                | `npm_`                                                         |
 | PyPI               | `pypi-`                                                        |
 | Shopify            | `shp(at\|ss\|ca\|pa)_`                                         |
-| Square             | `sq0atp-`                                                      |
-| Anthropic          | `sk-ant-api03-`                                                |
+| Square             | `sq0atp-` / `EAAA`                                             |
+| Anthropic          | `sk-ant-(api03\|admin01)-`                                     |
 | OpenAI (legacy)    | `sk-...T3BlbkFJ...`                                            |
-| OpenAI (new)       | `sk-proj-` / `sk-svcacct-`                                     |
+| OpenAI (new)       | `sk-(proj\|svcacct\|admin)-...T3BlbkFJ...`                     |
 | DigitalOcean       | `dop_v1_`                                                      |
 | Linear             | `lin_api_`                                                     |
 | PostHog            | `ph[cx]_`                                                      |
 | GitLab PAT         | `glpat-`                                                       |
-| Cloudflare API     | `cf_`                                                          |
-| Supabase Service   | `sbp_`                                                         |
+| Cloudflare Origin  | `v1.0-<24hex>-<146hex>`                                        |
+| Supabase Access    | `sbp_`                                                         |
 | GCP OAuth          | `ya29.`                                                        |
 | Hashicorp Vault    | `hvs.`                                                         |
 | Doppler            | `dp.(st\|sa\|ct).`                                             |
-| Vercel             | `vercel_`                                                      |
+| Vercel             | `vc[pirak]_` (vcp_/vci_/vca_/vcr_/vck_)                        |
 | Databricks         | `dapi`                                                         |
 | Grafana            | `glsa_`                                                        |
 | Pulumi             | `pul-`                                                         |
 | Hugging Face       | `hf_`                                                          |
 
-### Keyword: service-specific (4)
+### Keyword: service-specific (6)
 
 Match by a service name in the variable name (e.g. `heroku_api_key=...`).
 
-AWS Secret Key, Heroku, Azure Subscription Key, Datadog.
+AWS Secret Key, Heroku, Azure Subscription Key, Datadog, Cloudflare API Token, Mailgun.
 
 ### Keyword: generic dev words (3)
 

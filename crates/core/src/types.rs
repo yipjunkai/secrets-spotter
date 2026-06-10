@@ -40,7 +40,7 @@ pub enum SecretKind {
     PostHogPersonalKey,
     GitLabPat,
     CloudflareApiToken,
-    SupabaseServiceKey,
+    SupabaseAccessToken,
     GcpOAuthToken,
     HashicorpVaultToken,
     DopplerToken,
