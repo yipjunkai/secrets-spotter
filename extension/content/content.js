@@ -142,6 +142,10 @@
     sendForScan(text, url, `network:${source}`, contentType);
   });
 
+  // Tell the MAIN-world interceptor we're listening so it can flush any traffic
+  // it captured before this (later-injected) relay was ready.
+  window.postMessage({ type: '__SECRETS_SPOTTER_READY__' }, window.location.origin);
+
   if (document.readyState === 'complete') {
     scanPage();
   } else {
