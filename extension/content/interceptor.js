@@ -26,6 +26,17 @@
 
   const fetchController = new AbortController();
 
+  // The ISOLATED-world relay (content.js) runs at document_idle, later than this
+  // MAIN-world script (document_start), and window.postMessage does not queue for
+  // listeners added after a message is posted. Buffer captured payloads until the
+  // relay announces readiness, then flush — otherwise boot-time traffic (initial
+  // API calls, Authorization headers) is silently dropped. Bounded so a relay that
+  // never arrives can't grow memory without limit.
+  let relayReady = false;
+  const pendingPosts = [];
+  let pendingBytes = 0;
+  const MAX_PENDING_BYTES = 8_000_000;
+
   function shouldScan(url, contentType) {
     if (SKIP_EXTENSIONS.test(url)) return false;
     if (SKIP_PATHS.test(url)) return false;
@@ -37,13 +48,20 @@
   function postIntercepted(url, body, source, contentType) {
     if (!body || typeof body !== 'string' || body.length < 10) return;
     const text = body.length > MAX_SIZE ? body.slice(0, MAX_SIZE) : body;
-    window.postMessage({
+    const message = {
       type: '__SECRETS_SPOTTER_INTERCEPT__',
       url,
       text,
       source,
       contentType: contentType || '',
-    }, window.location.origin);
+    };
+    if (relayReady) {
+      window.postMessage(message, window.location.origin);
+    } else if (pendingBytes + text.length <= MAX_PENDING_BYTES) {
+      // Relay not listening yet — buffer until it announces readiness.
+      pendingPosts.push(message);
+      pendingBytes += text.length;
+    }
   }
 
   // Patch fetch() — request + response headers & body
@@ -421,6 +439,20 @@
 
   window.addEventListener('popstate', () => onNavigation());
   window.addEventListener('hashchange', () => onNavigation());
+
+  // The ISOLATED-world relay announces when its message listener is live; flush
+  // everything buffered before then, and switch to posting directly.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window) return;
+    if (event.origin !== window.location.origin) return;
+    if (event.data?.type !== '__SECRETS_SPOTTER_READY__') return;
+    relayReady = true;
+    for (const message of pendingPosts) {
+      window.postMessage(message, window.location.origin);
+    }
+    pendingPosts.length = 0;
+    pendingBytes = 0;
+  });
 
   // Listen for context invalidation signal from ISOLATED world content script
   window.addEventListener('__SECRETS_SPOTTER_CLEANUP__', () => {

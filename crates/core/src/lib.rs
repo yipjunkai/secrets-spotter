@@ -13,13 +13,14 @@ mod test_fixtures;
 use crate::detector::SecretDetector;
 use crate::types::SecretFinding;
 
-/// Maximum text size to scan (2 MB).
+/// Default maximum text size to scan (2 MB). Bounds main-thread work in the
+/// browser extension; the CLI passes its own `--max-size` instead.
 pub const MAX_SCAN_SIZE: usize = 2 * 1024 * 1024;
 
-/// Scan text for secrets, truncating to `MAX_SCAN_SIZE` at a valid UTF-8 boundary.
-pub fn scan_text(text: &str) -> Vec<SecretFinding> {
-    let text = if text.len() > MAX_SCAN_SIZE {
-        let mut end = MAX_SCAN_SIZE;
+/// Scan text for secrets, truncating to `max_size` at a valid UTF-8 boundary.
+pub fn scan_text_limited(text: &str, max_size: usize) -> Vec<SecretFinding> {
+    let text = if text.len() > max_size {
+        let mut end = max_size;
         while end > 0 && !text.is_char_boundary(end) {
             end -= 1;
         }
@@ -28,6 +29,11 @@ pub fn scan_text(text: &str) -> Vec<SecretFinding> {
         text
     };
     SecretDetector::scan(text)
+}
+
+/// Scan text, truncating to the default `MAX_SCAN_SIZE` cap.
+pub fn scan_text(text: &str) -> Vec<SecretFinding> {
+    scan_text_limited(text, MAX_SCAN_SIZE)
 }
 
 /// Merge existing findings with new ones, deduplicating by full_match value.
@@ -56,6 +62,23 @@ mod tests {
         let text = format!("{aws} {filler} {aws}");
         let findings = scan_text(&text);
         assert_eq!(findings.len(), 1, "only the pre-cap occurrence is found");
+        assert!(matches!(findings[0].kind, SecretKind::AwsAccessKey));
+    }
+
+    #[test]
+    fn scan_text_limited_honors_larger_limit() {
+        let aws = tok("AKIA", UPPER_NUM, 16);
+        let filler = "x".repeat(MAX_SCAN_SIZE);
+        // Secret placed past the default 2 MiB cap.
+        let text = format!("{filler} {aws}");
+        // Default cap misses it...
+        assert!(
+            scan_text(&text).is_empty(),
+            "default cap should miss the post-2MiB secret"
+        );
+        // ...but a larger explicit limit finds it.
+        let findings = scan_text_limited(&text, text.len());
+        assert_eq!(findings.len(), 1);
         assert!(matches!(findings[0].kind, SecretKind::AwsAccessKey));
     }
 }

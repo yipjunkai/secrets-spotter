@@ -41,7 +41,7 @@ pub fn scan_file(path: &Path, max_size: usize) -> Result<ScanResult> {
         String::new()
     });
 
-    let mut findings = secrets_spotter_core::scan_text(&content);
+    let mut findings = secrets_spotter_core::scan_text_limited(&content, max_size);
     enrich_findings(&content, &mut findings);
 
     Ok(ScanResult {
@@ -89,15 +89,7 @@ pub fn scan_stdin(max_size: usize) -> Result<ScanResult> {
         .read_to_string(&mut content)
         .context("Failed to read from stdin")?;
 
-    if content.len() > max_size {
-        let mut end = max_size;
-        while end > 0 && !content.is_char_boundary(end) {
-            end -= 1;
-        }
-        content.truncate(end);
-    }
-
-    let mut findings = secrets_spotter_core::scan_text(&content);
+    let mut findings = secrets_spotter_core::scan_text_limited(&content, max_size);
     enrich_findings(&content, &mut findings);
 
     Ok(ScanResult {

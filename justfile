@@ -1,8 +1,13 @@
 wasm-out := "extension/wasm"
 
-# Build everything (CLI + WASM in parallel)
+# Build everything (CLI + WASM in parallel; fails if either build fails)
 build:
-    just build-cli & just build-wasm & wait
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just build-cli & pid_cli=$!
+    just build-wasm & pid_wasm=$!
+    wait $pid_cli
+    wait $pid_wasm
 
 # Build CLI binary
 build-cli:
