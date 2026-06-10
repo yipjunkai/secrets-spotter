@@ -118,3 +118,6 @@ extension/wasm/*
 
 # Local-only audit scripts (YC harness etc)
 scripts/
+
+# Local-only working notes (not for commit)
+TODO.md
