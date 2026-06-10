@@ -65,6 +65,18 @@ lazy_static! {
             label: "GitHub App Installation Token",
             severity: Severity::Critical,
         },
+        // GitHub Token (legacy) — pre-2021 PATs / OAuth tokens were 40-char
+        // lowercase hex with no prefix. Keyword-gated because a bare 40-hex is a
+        // SHA-1; these tokens were never bulk-revoked, so they may still be live.
+        SecretPattern {
+            regex: Regex::new(
+                r#"(?i)(?-u:\b)(?:github|gh)_?(?:token|pat|key|secret|api_?key|oauth|access_?token)\s*[:=]\s*['\x22]?([0-9a-f]{40})['\x22]?"#
+            ).unwrap(),
+            prefixes: &[],
+            kind: SecretKind::GitHubToken,
+            label: "GitHub Token (legacy)",
+            severity: Severity::Critical,
+        },
         // Private Key (PEM)
         SecretPattern {
             regex: Regex::new(
@@ -212,12 +224,20 @@ lazy_static! {
             label: "Shopify Token",
             severity: Severity::Critical,
         },
-        // Square Access Token — legacy `sq0atp-`+22 and modern `EAAA`+60.
+        // Square Access Token — modern EAAA-prefixed format.
         SecretPattern {
-            regex: Regex::new(r"(?:sq0atp-[A-Za-z0-9_-]{22}|EAAA[A-Za-z0-9_-]{60})").unwrap(),
-            prefixes: &["sq0atp-", "EAAA"],
+            regex: Regex::new(r"EAAA[A-Za-z0-9_-]{60}").unwrap(),
+            prefixes: &["EAAA"],
             kind: SecretKind::SquareAccessToken,
             label: "Square Access Token",
+            severity: Severity::Critical,
+        },
+        // Square Access Token (legacy) — older sq0atp- personal access token.
+        SecretPattern {
+            regex: Regex::new(r"sq0atp-[A-Za-z0-9_-]{22}").unwrap(),
+            prefixes: &["sq0atp-"],
+            kind: SecretKind::SquareAccessToken,
+            label: "Square Access Token (legacy)",
             severity: Severity::Critical,
         },
         // Anthropic API Key
@@ -233,7 +253,7 @@ lazy_static! {
             regex: Regex::new(r"sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}").unwrap(),
             prefixes: &["sk-"],
             kind: SecretKind::OpenAiApiKey,
-            label: "OpenAI API Key",
+            label: "OpenAI API Key (legacy)",
             severity: Severity::Critical,
         },
         // OpenAI API Key (new project/service account format)
@@ -329,6 +349,17 @@ lazy_static! {
             label: "Hashicorp Vault Token",
             severity: Severity::Critical,
         },
+        // HashiCorp Vault Token (legacy) — pre-1.10 service tokens use the `s.`
+        // prefix; keyword-gated on "vault" since a bare `s.`+24 is very noisy.
+        SecretPattern {
+            regex: Regex::new(
+                r#"(?i)vault[a-z0-9_\-]*\s*[:=]\s*['\x22]?(s\.[A-Za-z0-9]{24})['\x22]?"#
+            ).unwrap(),
+            prefixes: &[],
+            kind: SecretKind::HashicorpVaultToken,
+            label: "HashiCorp Vault Token (legacy)",
+            severity: Severity::Critical,
+        },
         // Doppler Token
         SecretPattern {
             regex: Regex::new(r"dp\.(?:st|sa|ct)\.[A-Za-z0-9_\-]{40,}").unwrap(),
@@ -344,6 +375,17 @@ lazy_static! {
             prefixes: &["vcp_", "vci_", "vca_", "vcr_", "vck_"],
             kind: SecretKind::VercelToken,
             label: "Vercel Token",
+            severity: Severity::Critical,
+        },
+        // Vercel Token (legacy) — pre-2026 tokens were bare 24-char alphanumeric,
+        // detected via a "vercel" keyword (still accepted by the API).
+        SecretPattern {
+            regex: Regex::new(
+                r#"(?i)vercel[a-z0-9_\-]*\s*[:=]\s*['\x22]?([A-Za-z0-9]{24})['\x22]?"#
+            ).unwrap(),
+            prefixes: &[],
+            kind: SecretKind::VercelToken,
+            label: "Vercel Token (legacy)",
             severity: Severity::Critical,
         },
         // Databricks Token

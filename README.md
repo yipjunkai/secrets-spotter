@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/github/v/release/yipjunkai/secrets-spotter)](https://github.com/yipjunkai/secrets-spotter/releases/latest)
 [![License](https://img.shields.io/github/license/yipjunkai/secrets-spotter)](#-license)
 
-**A CLI tool and Chrome extension that detects exposed API keys, tokens, and other secrets in files, stdin, web pages, and network traffic.** Rust core with 52 detection patterns. Fully local — no data leaves your machine or browser.
+**A CLI tool and Chrome extension that detects exposed API keys, tokens, and other secrets in files, stdin, web pages, and network traffic.** Rust core with 56 detection patterns. Fully local — no data leaves your machine or browser.
 
 ```text
 $ secrets-spotter src/ .env
@@ -88,7 +88,7 @@ Once the Chrome extension is loaded, browse any website. The icon badge shows th
 
 - **CLI tool** for scanning files, directories, and stdin — CI/CD ready with JSON and SARIF output
 - **Chrome extension** for real-time scanning of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
-- **52 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 46 more
+- **56 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 50 more (including keyword-gated legacy formats)
 - **False-positive filtering** — Shannon entropy, placeholder detection, code-identifier rejection, URL/path exclusion
 - **JWT decoder in popup** — expandable header / payload JSON view for detected JWTs
 - **SPA-aware** — extension re-scans on `pushState`, `replaceState`, `popstate`, and `hashchange` navigations
@@ -124,7 +124,7 @@ secrets-spotter/
 │   │   └── src/
 │   │       ├── lib.rs          # Public API (scan_text, merge_findings)
 │   │       ├── detector.rs     # Detection engine + false-positive filtering
-│   │       ├── patterns.rs     # 52 secret regex patterns
+│   │       ├── patterns.rs     # 56 secret regex patterns
 │   │       ├── types.rs        # SecretKind, Severity, SecretFinding
 │   │       ├── filter.rs       # URL/content filtering (skip CDNs, media)
 │   │       ├── cookies.rs      # Cookie parsing utility
@@ -200,9 +200,9 @@ To enable: set `SCAN_EXTERNAL_RESOURCES = true` in `extension/content/intercepto
 
 ## 🔍 Detection patterns
 
-52 patterns across three tiers.
+56 patterns across three tiers, plus keyword-gated legacy formats.
 
-### Known-prefix patterns (41)
+### Known-prefix patterns (42)
 
 Match by a fixed prefix or structure baked into the credential itself — highest confidence.
 
@@ -264,6 +264,16 @@ Generic API Key, Bearer Token, Generic API Token.
 ### Entropy-based fallback (2)
 
 Broad keyword match (`key`, `token`, `secret`, `password`) with Shannon entropy validation (≥3.5 bits/char) to catch credentials that don't match any known prefix or service keyword.
+
+### Legacy formats (3)
+
+Older token formats that are no longer issued but whose existing tokens may still be valid. Keyword-gated to avoid false positives on the (often generic) old shapes.
+
+- **GitHub** — pre-2021 40-char hex PAT / OAuth token (gated on a `github`/`gh` token keyword; a bare 40-hex is a SHA-1)
+- **HashiCorp Vault** — pre-1.10 `s.` service token (gated on a `vault` keyword)
+- **Vercel** — pre-2026 24-char token (gated on a `vercel` keyword)
+
+OpenAI's legacy `sk-…T3BlbkFJ…` and Square's `sq0atp-` are also labeled `(legacy)` in findings.
 
 ### False-positive filtering
 

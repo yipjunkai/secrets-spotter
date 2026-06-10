@@ -438,6 +438,32 @@ fn keyword_generic_patterns(
     );
 }
 
+// ── Legacy formats (keyword-gated, still-valid old tokens) ───────────
+
+#[rstest]
+// GitHub pre-2021 40-char hex PAT — only with a github/gh token keyword
+#[case(&format!("github_token={}", body(HEX, 40)), SecretKind::GitHubToken, true)]
+#[case(&format!("gh_pat = \"{}\"", body(HEX, 40)), SecretKind::GitHubToken, true)]
+#[case(&body(HEX, 40), SecretKind::GitHubToken, false)] // bare 40-hex (a SHA) — no keyword
+#[case(&format!("git_sha={}", body(HEX, 40)), SecretKind::GitHubToken, false)] // commit SHA, not a token
+// HashiCorp Vault legacy s. service token — only with a vault keyword
+#[case(&format!("vault_token=s.{}", body(ALNUM, 24)), SecretKind::HashicorpVaultToken, true)]
+#[case(&format!("s.{}", body(ALNUM, 24)), SecretKind::HashicorpVaultToken, false)] // bare, no keyword
+// Vercel legacy 24-char token — only with a vercel keyword
+#[case(&format!("vercel_token={}", body(ALNUM, 24)), SecretKind::VercelToken, true)]
+#[case(&body(ALNUM, 24), SecretKind::VercelToken, false)] // bare 24-char, no keyword
+fn legacy_keyword_patterns(
+    #[case] input: &str,
+    #[case] kind: SecretKind,
+    #[case] should_match: bool,
+) {
+    assert_eq!(
+        has_finding(input, &kind),
+        should_match,
+        "input={input:?}, expected match={should_match}"
+    );
+}
+
 // ── Word-boundary regressions ────────────────────────────────────────
 // Fixed-prefix patterns must not fire on a prefix embedded inside a longer
 // token. These reproduce two empirically-confirmed false positives.
