@@ -36,6 +36,10 @@ struct Cli {
     #[arg(long, default_value_t = secrets_spotter_core::MAX_SCAN_SIZE)]
     max_size: usize,
 
+    /// Also scan files excluded by .gitignore / .ignore (e.g. .env)
+    #[arg(long)]
+    no_ignore: bool,
+
     /// Suppress output, exit code only
     #[arg(short, long)]
     quiet: bool,
@@ -100,7 +104,12 @@ fn run() -> Result<()> {
         for path in &cli.paths {
             let p = std::path::Path::new(path);
             if p.is_dir() {
-                all.extend(scan::scan_dir(p, cli.max_size, &glob_patterns)?);
+                all.extend(scan::scan_dir(
+                    p,
+                    cli.max_size,
+                    &glob_patterns,
+                    cli.no_ignore,
+                )?);
             } else {
                 all.push(scan::scan_file(p, cli.max_size)?);
             }
