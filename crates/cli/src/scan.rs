@@ -50,9 +50,19 @@ pub fn scan_file(path: &Path, max_size: usize) -> Result<ScanResult> {
     })
 }
 
-pub fn scan_dir(dir: &Path, max_size: usize, glob_patterns: &[String]) -> Result<Vec<ScanResult>> {
+pub fn scan_dir(
+    dir: &Path,
+    max_size: usize,
+    glob_patterns: &[String],
+    no_ignore: bool,
+) -> Result<Vec<ScanResult>> {
     let mut builder = WalkBuilder::new(dir);
-    builder.hidden(false).git_ignore(true).git_global(true);
+    builder
+        .hidden(false)
+        .git_ignore(!no_ignore)
+        .git_global(!no_ignore)
+        .git_exclude(!no_ignore)
+        .ignore(!no_ignore);
 
     // Add glob filters via overrides
     if !glob_patterns.is_empty() {
@@ -67,16 +77,25 @@ pub fn scan_dir(dir: &Path, max_size: usize, glob_patterns: &[String]) -> Result
 
     let mut results = Vec::new();
     for entry in builder.build() {
-        let entry = entry?;
+        // A single unreadable directory or entry must not abort the whole scan
+        // and discard everything found so far — warn and keep going.
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                eprintln!("secrets-spotter: skipping unreadable entry: {err}");
+                continue;
+            }
+        };
         let path = entry.path();
 
         if !path.is_file() {
             continue;
         }
 
-        let result = scan_file(path, max_size)?;
-        if !result.findings.is_empty() {
-            results.push(result);
+        match scan_file(path, max_size) {
+            Ok(result) if !result.findings.is_empty() => results.push(result),
+            Ok(_) => {}
+            Err(err) => eprintln!("secrets-spotter: skipping {}: {err}", path.display()),
         }
     }
 
