@@ -1,19 +1,13 @@
 name: Verify Code
 
 on:
+  # No paths-ignore here on purpose: branch protection requires the "ci-passed"
+  # check, and a paths-ignored (e.g. docs-only) PR would never trigger this
+  # workflow, so that required check would never report and the PR would
+  # deadlock. Running the full pipeline on docs-only PRs is the cheaper tradeoff.
   pull_request:
-    paths-ignore:
-      - "**.md"
-      - "LICENSE*"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/PULL_REQUEST_TEMPLATE.md"
   push:
     branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "LICENSE*"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/PULL_REQUEST_TEMPLATE.md"
   workflow_dispatch:
 
 concurrency:
@@ -33,6 +27,22 @@ jobs:
         uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
         with:
           extra_args: --results=verified,unknown
+
+  version-check:
+    name: Version Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: extension/manifest.json version matches Cargo.toml
+        shell: bash
+        run: |
+          CARGO=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          MANIFEST=$(grep -m1 '"version"' extension/manifest.json | sed -E 's/.*"version"[^"]*"([^"]+)".*/\1/')
+          echo "Cargo.toml=$CARGO  extension/manifest.json=$MANIFEST"
+          if [ "$CARGO" != "$MANIFEST" ]; then
+            echo "::error::Version mismatch — Cargo.toml=$CARGO, extension/manifest.json=$MANIFEST. Keep them in sync."
+            exit 1
+          fi
 
   lint-and-format:
     name: Lint and Format
@@ -83,7 +93,7 @@ jobs:
     # failed or was cancelled. Runs even on partial failures (`if: always()`).
     name: ci-passed
     if: ${{ always() }}
-    needs: [secret-scanning, lint-and-format, build, test]
+    needs: [secret-scanning, version-check, lint-and-format, build, test]
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate required-job results
