@@ -41,6 +41,7 @@ pub enum SecretKind {
     GitLabPat,
     CloudflareApiToken,
     SupabaseAccessToken,
+    SupabaseSecretKey,
     GcpOAuthToken,
     HashicorpVaultToken,
     DopplerToken,

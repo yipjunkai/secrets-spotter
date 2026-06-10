@@ -87,6 +87,22 @@ lazy_static! {
             label: "Private Key (PEM)",
             severity: Severity::Critical,
         },
+        // SSH2 / RFC4716 private key armor — four dashes + spaces (unlike PEM).
+        SecretPattern {
+            regex: Regex::new(r"---- BEGIN SSH2 (?:ENCRYPTED )?PRIVATE KEY ----").unwrap(),
+            prefixes: &["---- BEGIN SSH2"],
+            kind: SecretKind::PrivateKeyBlock,
+            label: "Private Key (SSH2)",
+            severity: Severity::Critical,
+        },
+        // PuTTY private key file (PPK) header — v2 and v3.
+        SecretPattern {
+            regex: Regex::new(r"PuTTY-User-Key-File-[23]:").unwrap(),
+            prefixes: &["PuTTY-User-Key-File-"],
+            kind: SecretKind::PrivateKeyBlock,
+            label: "Private Key (PuTTY PPK)",
+            severity: Severity::Critical,
+        },
         // Password in URL
         SecretPattern {
             regex: Regex::new(
@@ -172,6 +188,15 @@ lazy_static! {
             label: "Twilio API Key SID",
             severity: Severity::High,
         },
+        // Twilio Account SID — `AC` + 32 hex. An identifier (paired with the
+        // auth token), so Low severity; word-bounded to limit hex false positives.
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)AC[0-9a-f]{32}(?-u:\b)").unwrap(),
+            prefixes: &["AC"],
+            kind: SecretKind::TwilioKey,
+            label: "Twilio Account SID",
+            severity: Severity::Low,
+        },
         // SendGrid API Key
         SecretPattern {
             regex: Regex::new(r"SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}").unwrap(),
@@ -240,12 +265,29 @@ lazy_static! {
             label: "Square Access Token (legacy)",
             severity: Severity::Critical,
         },
+        // Square OAuth Secret (legacy) — sq0csp- (live) / sq0csb- (sandbox).
+        SecretPattern {
+            regex: Regex::new(r"(?:sandbox-)?sq0c[a-z]{2}-[0-9A-Za-z_-]{40,50}").unwrap(),
+            prefixes: &["sq0c"],
+            kind: SecretKind::SquareAccessToken,
+            label: "Square OAuth Secret (legacy)",
+            severity: Severity::Critical,
+        },
         // Anthropic API Key
         SecretPattern {
             regex: Regex::new(r"sk-ant-(?:api03|admin01)-[A-Za-z0-9_-]{93}AA").unwrap(),
             prefixes: &["sk-ant-api03-", "sk-ant-admin01-"],
             kind: SecretKind::AnthropicApiKey,
             label: "Anthropic API Key",
+            severity: Severity::Critical,
+        },
+        // Anthropic OAuth Token — issued by `claude setup-token`; unlike api03
+        // it has no trailing AA and a longer, variable body.
+        SecretPattern {
+            regex: Regex::new(r"sk-ant-oat01-[A-Za-z0-9_-]{86,}").unwrap(),
+            prefixes: &["sk-ant-oat01-"],
+            kind: SecretKind::AnthropicApiKey,
+            label: "Anthropic OAuth Token",
             severity: Severity::Critical,
         },
         // OpenAI API Key (legacy format)
@@ -291,10 +333,18 @@ lazy_static! {
         },
         // PostHog Personal API Key — full account access
         SecretPattern {
-            regex: Regex::new(r"phx_[A-Za-z0-9]{30,}").unwrap(),
+            regex: Regex::new(r"phx_[A-Za-z0-9_]{43}").unwrap(),
             prefixes: &["phx_"],
             kind: SecretKind::PostHogPersonalKey,
             label: "PostHog Personal API Key",
+            severity: Severity::Critical,
+        },
+        // PostHog secret prefixes — phs_ (feature-flag secure), pha_/phr_ (OAuth).
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)ph[sar]_[A-Za-z0-9_]{30,}").unwrap(),
+            prefixes: &["phs_", "pha_", "phr_"],
+            kind: SecretKind::PostHogPersonalKey,
+            label: "PostHog Secret Key",
             severity: Severity::Critical,
         },
         // GitLab Personal Access Token
@@ -324,6 +374,15 @@ lazy_static! {
             label: "Cloudflare Origin CA Key",
             severity: Severity::Critical,
         },
+        // Cloudflare prefixed tokens (2026) — cfat_ (account), cfut_ (user),
+        // cfk_ (Global API Key): distinct prefix + 40-char body + checksum.
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)cf(?:at|ut|k)_[A-Za-z0-9]{40,60}(?-u:\b)").unwrap(),
+            prefixes: &["cfat_", "cfut_", "cfk_"],
+            kind: SecretKind::CloudflareApiToken,
+            label: "Cloudflare API Token",
+            severity: Severity::Critical,
+        },
         // Supabase Access Token — `sbp_` is the personal/management API token;
         // the service-role key is a JWT (caught by the JWT pattern instead).
         SecretPattern {
@@ -331,6 +390,15 @@ lazy_static! {
             prefixes: &["sbp_"],
             kind: SecretKind::SupabaseAccessToken,
             label: "Supabase Access Token",
+            severity: Severity::Critical,
+        },
+        // Supabase Secret Key — `sb_secret_` (2025 replacement for the
+        // service_role JWT). The `sb_publishable_` sibling is public, so skipped.
+        SecretPattern {
+            regex: Regex::new(r"(?-u:\b)sb_secret_[A-Za-z0-9_-]{31,36}").unwrap(),
+            prefixes: &["sb_secret_"],
+            kind: SecretKind::SupabaseSecretKey,
+            label: "Supabase Secret Key",
             severity: Severity::Critical,
         },
         // GCP OAuth Access Token
@@ -362,7 +430,7 @@ lazy_static! {
         },
         // Doppler Token
         SecretPattern {
-            regex: Regex::new(r"dp\.(?:st|sa|ct)\.[A-Za-z0-9_\-]{40,}").unwrap(),
+            regex: Regex::new(r"dp\.(?:st|sa|ct|pt|scim|audit)\.[A-Za-z0-9]{40,44}").unwrap(),
             prefixes: &["dp."],
             kind: SecretKind::DopplerToken,
             label: "Doppler Token",

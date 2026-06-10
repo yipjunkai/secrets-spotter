@@ -5,7 +5,7 @@
 [![Release](https://img.shields.io/github/v/release/yipjunkai/secrets-spotter)](https://github.com/yipjunkai/secrets-spotter/releases/latest)
 [![License](https://img.shields.io/github/license/yipjunkai/secrets-spotter)](#-license)
 
-**A CLI tool and Chrome extension that detects exposed API keys, tokens, and other secrets in files, stdin, web pages, and network traffic.** Rust core with 56 detection patterns. Fully local — no data leaves your machine or browser.
+**A CLI tool and Chrome extension that detects exposed API keys, tokens, and other secrets in files, stdin, web pages, and network traffic.** Rust core with 64 detection patterns. Fully local — no data leaves your machine or browser.
 
 ```text
 $ secrets-spotter src/ .env
@@ -21,8 +21,8 @@ $ secrets-spotter src/ .env
 
 Three-tier detection pipeline tuned for speed and precision:
 
-1. **Known-prefix patterns (42)** — fixed prefixes baked into the credential format itself (`AKIA`, `ghp_`, `sk-ant-`, `eyJ...eyJ`). Highest confidence, lowest false-positive rate.
-2. **Keyword patterns (7)** — service or generic variable names paired with high-entropy values (`aws_secret_access_key=...`, `authorization: Bearer ...`).
+1. **Known-prefix patterns (50)** — fixed prefixes baked into the credential format itself (`AKIA`, `ghp_`, `sk-ant-`, `eyJ...eyJ`). Highest confidence, lowest false-positive rate.
+2. **Keyword patterns (12)** — service or generic variable names paired with high-entropy values (`aws_secret_access_key=...`, `authorization: Bearer ...`).
 3. **Entropy fallback (2)** — broad keyword match (`key`, `token`, `secret`) with Shannon-entropy validation (≥3.5 bits/char) to catch novel formats.
 
 A `RegexSet` + `memchr` pre-filter on prefix substrings means non-matching input is rejected without running any regex. False-positive filtering rejects placeholders, code identifiers (camelCase / snake_case / kebab-case), URLs, file paths, and low-diversity character sets before reporting.
@@ -88,7 +88,7 @@ Once the Chrome extension is loaded, browse any website. The icon badge shows th
 
 - **CLI tool** for scanning files, directories, and stdin — CI/CD ready with JSON and SARIF output
 - **Chrome extension** for real-time scanning of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
-- **56 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 50 more (including keyword-gated legacy formats)
+- **64 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 58 more (including keyword-gated legacy formats)
 - **False-positive filtering** — Shannon entropy, placeholder detection, code-identifier rejection, URL/path exclusion
 - **JWT decoder in popup** — expandable header / payload JSON view for detected JWTs
 - **SPA-aware** — extension re-scans on `pushState`, `replaceState`, `popstate`, and `hashchange` navigations
@@ -124,7 +124,7 @@ secrets-spotter/
 │   │   └── src/
 │   │       ├── lib.rs          # Public API (scan_text, merge_findings)
 │   │       ├── detector.rs     # Detection engine + false-positive filtering
-│   │       ├── patterns.rs     # 56 secret regex patterns
+│   │       ├── patterns.rs     # 64 secret regex patterns
 │   │       ├── types.rs        # SecretKind, Severity, SecretFinding
 │   │       ├── filter.rs       # URL/content filtering (skip CDNs, media)
 │   │       ├── cookies.rs      # Cookie parsing utility
@@ -200,9 +200,9 @@ To enable: set `SCAN_EXTERNAL_RESOURCES = true` in `extension/content/intercepto
 
 ## 🔍 Detection patterns
 
-56 patterns across three tiers, plus keyword-gated legacy formats.
+64 patterns across three tiers, plus keyword-gated legacy formats.
 
-### Known-prefix patterns (42)
+### Known-prefix patterns (50)
 
 Match by a fixed prefix or structure baked into the credential itself — highest confidence.
 
@@ -215,6 +215,7 @@ Match by a fixed prefix or structure baked into the credential itself — highes
 | GitHub App         | `ghu_` / `ghr_` (36 chars)                                     |
 | GitHub App Install | `ghs_` (legacy 36 chars + new stateless ~520 chars)            |
 | Private Key (PEM)  | `-----BEGIN...PRIVATE KEY-----`                                |
+| Private Key (SSH2) | `---- BEGIN SSH2...` / `PuTTY-User-Key-File-`                  |
 | Password in URL    | `protocol://user:pass@host` (incl. redis, mongodb, amqp, smtp) |
 | JWT                | `eyJ...eyJ...`                                                 |
 | Slack              | `xox[bpors]-`                                                  |
@@ -225,21 +226,24 @@ Match by a fixed prefix or structure baked into the credential itself — highes
 | Stripe Restricted  | `rk_(live\|test)_`                                             |
 | Stripe Webhook     | `whsec_`                                                       |
 | Twilio API Key SID | `SK` + 32 hex chars                                            |
+| Twilio Account SID | `AC` + 32 hex chars                                            |
 | SendGrid           | `SG.`                                                          |
 | Discord Bot        | `[MNO]...(dot-separated base64)`                               |
 | npm                | `npm_`                                                         |
 | PyPI               | `pypi-`                                                        |
 | Shopify            | `shp(at\|ss\|ca\|pa)_`                                         |
-| Square             | `sq0atp-` / `EAAA`                                             |
-| Anthropic          | `sk-ant-(api03\|admin01)-`                                     |
+| Square             | `sq0atp-` / `sq0csp-` / `EAAA`                                 |
+| Anthropic          | `sk-ant-(api03\|admin01\|oat01)-`                              |
 | OpenAI (legacy)    | `sk-...T3BlbkFJ...`                                            |
 | OpenAI (new)       | `sk-(proj\|svcacct\|admin)-...T3BlbkFJ...`                     |
 | DigitalOcean       | `dop_v1_`                                                      |
 | Linear             | `lin_api_`                                                     |
-| PostHog            | `ph[cx]_`                                                      |
+| PostHog            | `ph[cxsar]_`                                                   |
 | GitLab PAT         | `glpat-`                                                       |
+| Cloudflare API     | `cfat_` / `cfut_` / `cfk_`                                     |
 | Cloudflare Origin  | `v1.0-<24hex>-<146hex>`                                        |
 | Supabase Access    | `sbp_`                                                         |
+| Supabase Secret    | `sb_secret_`                                                   |
 | GCP OAuth          | `ya29.`                                                        |
 | Hashicorp Vault    | `hvs.`                                                         |
 | Doppler            | `dp.(st\|sa\|ct).`                                             |

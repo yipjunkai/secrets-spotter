@@ -323,10 +323,11 @@ fn openai_key(#[case] input: &str, #[case] should_match: bool) {
 #[case("ya29.short", SecretKind::GcpOAuthToken, false)]
 #[case(&tok("hvs.", URL_SAFE, 24), SecretKind::HashicorpVaultToken, true)]
 #[case("hvs.short", SecretKind::HashicorpVaultToken, false)]
-#[case(&tok("dp.st.", URL_SAFE, 40), SecretKind::DopplerToken, true)]
-#[case(&tok("dp.sa.", URL_SAFE, 40), SecretKind::DopplerToken, true)]
-#[case(&tok("dp.ct.", URL_SAFE, 40), SecretKind::DopplerToken, true)]
-#[case(&tok("dp.xx.", URL_SAFE, 40), SecretKind::DopplerToken, false)] // wrong infix
+#[case(&tok("dp.st.", ALNUM, 42), SecretKind::DopplerToken, true)]
+#[case(&tok("dp.sa.", ALNUM, 42), SecretKind::DopplerToken, true)]
+#[case(&tok("dp.ct.", ALNUM, 42), SecretKind::DopplerToken, true)]
+#[case(&tok("dp.pt.", ALNUM, 42), SecretKind::DopplerToken, true)] // personal token
+#[case(&tok("dp.xx.", ALNUM, 42), SecretKind::DopplerToken, false)] // wrong infix
 #[case(&tok("vcp_", ALNUM, 24), SecretKind::VercelToken, true)]
 #[case(&tok("vck_", ALNUM, 24), SecretKind::VercelToken, true)]
 #[case(&tok("vercel_", ALNUM, 24), SecretKind::VercelToken, false)] // old vercel_ prefix is not real
@@ -352,7 +353,9 @@ fn provider_tokens(#[case] input: &str, #[case] kind: SecretKind, #[case] should
 #[rstest]
 #[case(&tok("phc_", ALNUM, 30), SecretKind::PostHogProjectKey, true)]
 #[case("phc_short", SecretKind::PostHogProjectKey, false)]
-#[case(&tok("phx_", ALNUM, 30), SecretKind::PostHogPersonalKey, true)]
+#[case(&tok("phx_", ALNUM, 43), SecretKind::PostHogPersonalKey, true)] // exactly 43 chars
+#[case(&tok("phs_", ALNUM, 40), SecretKind::PostHogPersonalKey, true)] // feature-flag secure
+#[case(&tok("pha_", ALNUM, 40), SecretKind::PostHogPersonalKey, true)] // OAuth access
 #[case("phx_short", SecretKind::PostHogPersonalKey, false)]
 fn posthog_keys(#[case] input: &str, #[case] kind: SecretKind, #[case] should_match: bool) {
     assert_eq!(
@@ -435,6 +438,54 @@ fn keyword_generic_patterns(
         has_finding(input, &kind),
         should_match,
         "input={input:?}, expected match={should_match}"
+    );
+}
+
+// ── Current-format additions (newer/missed shapes) ──────────────────
+
+#[rstest]
+// Anthropic OAuth token — no trailing AA, longer body than api03
+#[case(&format!("sk-ant-oat01-{}", body(URL_SAFE, 90)), SecretKind::AnthropicApiKey, true)]
+// Twilio Account SID — AC + 32 lowercase hex
+#[case(&format!("sid=AC{}", body(HEX, 32)), SecretKind::TwilioKey, true)]
+#[case(&format!("RAC{}", body(HEX, 32)), SecretKind::TwilioKey, false)] // AC embedded mid-word
+// Supabase secret key (2025 replacement for service_role)
+#[case(&format!("sb_secret_{}", body(ALNUM, 33)), SecretKind::SupabaseSecretKey, true)]
+#[case("sb_secret_short", SecretKind::SupabaseSecretKey, false)]
+// Square OAuth secret (legacy sq0csp-/sandbox sq0csb-)
+#[case(&format!("sq0csp-{}", body(URL_SAFE, 45)), SecretKind::SquareAccessToken, true)]
+// Cloudflare 2026 prefixed tokens
+#[case(&format!("cfat_{}", body(ALNUM, 45)), SecretKind::CloudflareApiToken, true)]
+#[case(&format!("cfk_{}", body(ALNUM, 45)), SecretKind::CloudflareApiToken, true)]
+fn current_format_additions(
+    #[case] input: &str,
+    #[case] kind: SecretKind,
+    #[case] should_match: bool,
+) {
+    assert_eq!(
+        has_finding(input, &kind),
+        should_match,
+        "input={input:?}, expected match={should_match}"
+    );
+}
+
+// SSH2 and PuTTY private-key headers — assembled so they aren't contiguous
+// literals in source (scan-self dogfood guard).
+#[test]
+fn ssh2_private_key_armor_matches() {
+    let input = format!("---- BEGIN SSH2 ENCRYPTED PRIVATE {}", "KEY ----");
+    assert!(
+        has_finding(&input, &SecretKind::PrivateKeyBlock),
+        "input={input:?}"
+    );
+}
+
+#[test]
+fn putty_ppk_header_matches() {
+    let input = format!("PuTTY-User-Key-File-{}: ssh-ed25519", "3");
+    assert!(
+        has_finding(&input, &SecretKind::PrivateKeyBlock),
+        "input={input:?}"
     );
 }
 
