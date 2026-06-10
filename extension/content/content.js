@@ -180,30 +180,48 @@
     }, 2000);
   });
 
-  const target = document.body || document.documentElement;
-  if (target) {
-    observer.observe(target, { childList: true, subtree: true });
+  function observeDom() {
+    const target = document.body || document.documentElement;
+    if (target && observer) {
+      observer.observe(target, { childList: true, subtree: true });
+    }
   }
+  observeDom();
 
-  // Detect extension context invalidation (e.g. extension update/reload)
-  // Detect extension context invalidation (e.g. extension update/reload)
-  const contextCheckInterval = setInterval(() => {
+  // Detect extension context invalidation (e.g. extension update/reload).
+  function contextInvalidationTick() {
     if (typeof chrome === 'undefined' || !chrome.runtime?.id) {
       clearInterval(contextCheckInterval);
+      contextCheckInterval = null;
       if (observer) observer.disconnect();
       clearTimeout(scanTimeout);
       pendingTexts = [];
       // Signal MAIN world interceptor to clean up too
       window.dispatchEvent(new Event('__SECRETS_SPOTTER_CLEANUP__'));
     }
-  }, 5000);
+  }
+  let contextCheckInterval = setInterval(contextInvalidationTick, 5000);
 
   window.addEventListener('pagehide', () => {
+    // Entering bfcache or unloading — tear down. pageshow re-arms on a bfcache
+    // restore (when this script's context is resumed rather than re-run).
     clearInterval(contextCheckInterval);
-    if (observer) {
-      observer.disconnect();
-    }
+    contextCheckInterval = null;
+    if (observer) observer.disconnect();
     clearTimeout(scanTimeout);
     pendingTexts = [];
+  });
+
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return; // fresh loads are already armed at injection
+    // Restored from bfcache: the back/forward navigation made the worker clear
+    // this tab's findings, but this content script never re-ran — so re-arm the
+    // observer and re-scan (clearing the hash cache so the re-scan isn't skipped).
+    if (!contextCheckInterval) {
+      contextCheckInterval = setInterval(contextInvalidationTick, 5000);
+    }
+    observeDom();
+    scannedHashes.clear();
+    scanPage();
   });
 })();
