@@ -22,6 +22,10 @@ build-wasm:
 test:
     cargo test --workspace
 
+# Run the extension JS test suite (vitest + happy-dom). Requires `npm ci` first.
+test-js:
+    npm test
+
 # Run scan-throughput benchmarks (native, speed-optimized bench profile).
 # Reads the committed corpus under crates/core/benches/corpus/ plus any local
 # real-page dumps in crates/core/benches/sites/ (gitignored).

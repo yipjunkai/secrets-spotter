@@ -118,13 +118,29 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: just scan-self
 
+  test-js:
+    name: Extension JS tests
+    needs: changes
+    if: ${{ needs.changes.outputs.code != 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run extension JS tests (vitest)
+        run: npm test
+
   ci-passed:
     # Single check that branch protection can require, instead of listing each
     # job by name. Succeeds only if all needed jobs succeeded or were skipped;
     # fails if any failed or was cancelled. Runs even on partial failures.
     name: ci-passed
     if: ${{ always() }}
-    needs: [changes, secret-scanning, version-check, lint-and-format, build, test]
+    needs: [changes, secret-scanning, version-check, lint-and-format, build, test, test-js]
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate required-job results
