@@ -22,6 +22,12 @@ build-wasm:
 test:
     cargo test --workspace
 
+# Run scan-throughput benchmarks (native, speed-optimized bench profile).
+# Reads the committed corpus under crates/core/benches/corpus/ plus any local
+# real-page dumps in crates/core/benches/sites/ (gitignored).
+bench:
+    cargo bench -p secrets-spotter-core --bench scan
+
 # Dogfood: scan our own source with the CLI — must find nothing.
 # Guards the test-fixture policy: secret-shaped strings must never appear
 # as contiguous literals in source (see crates/core/src/test_fixtures.rs).

@@ -116,8 +116,12 @@ $RECYCLE.BIN/
 # Build artifacts
 extension/wasm/*
 
-# Local-only audit scripts (YC harness etc)
-scripts/
+# Local-only audit scripts (YC harness etc) — root only, so .github/scripts/ is tracked
+/scripts/
 
 # Local-only working notes (not for commit)
 TODO.md
+
+# Local-only benchmark corpus: real page dumps for the scan bench.
+# The committed synthetic corpus lives in crates/core/benches/corpus/.
+crates/core/benches/sites/
