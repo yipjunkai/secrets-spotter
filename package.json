@@ -1,0 +1,15 @@
+{
+  "name": "secrets-spotter-extension-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Test harness for the Secrets Spotter Chrome extension JS (content scripts + service worker). Not published; the extension ships as plain unbundled JS.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.10.2",
+    "vitest": "^4.1.8"
+  }
+}

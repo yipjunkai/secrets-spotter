@@ -125,3 +125,7 @@ TODO.md
 # Local-only benchmark corpus: real page dumps for the scan bench.
 # The committed synthetic corpus lives in crates/core/benches/corpus/.
 crates/core/benches/sites/
+
+### Node (extension JS test harness — vitest) ###
+node_modules/
+coverage/

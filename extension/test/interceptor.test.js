@@ -1,0 +1,123 @@
+// interceptor.js (MAIN world): patches fetch/XHR/WebSocket/SSE, buffers captured
+// payloads until the ISOLATED-world relay announces readiness, and emits SPA
+// navigation signals. It posts everything via window.postMessage (spied as
+// env.posted); it never touches chrome.*.
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { createChrome } from './helpers/chrome.js';
+import { createEnv, loadContentScript, makeResponse } from './helpers/loadScript.js';
+
+const ORIGIN = 'https://app.example.test';
+const flush = async (n = 4) => {
+  for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0));
+};
+
+const load = (env) =>
+  loadContentScript('content/interceptor.js', env, { chrome: createChrome() });
+
+const intercepts = (env) =>
+  env.posted.mock.calls
+    .map(([m]) => m)
+    .filter((m) => m?.type === '__SECRETS_SPOTTER_INTERCEPT__');
+
+const ready = (env) =>
+  env.emit('message', {
+    source: env.window,
+    origin: ORIGIN,
+    data: { type: '__SECRETS_SPOTTER_READY__' },
+  });
+
+afterEach(() => vi.useRealTimers());
+
+describe('interceptor.js — relay buffering', () => {
+  it('buffers captured payloads until READY, then flushes them', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+
+    await env.window.fetch(`${ORIGIN}/api`, {
+      method: 'POST',
+      body: 'request-body-payload',
+      headers: { 'x-test': 'header-value-here' },
+    });
+    await flush();
+
+    // Relay not ready yet — nothing posted to the page.
+    expect(intercepts(env)).toHaveLength(0);
+
+    ready(env);
+
+    const texts = intercepts(env).map((m) => m.text);
+    expect(texts).toContain('request-body-payload');
+  });
+});
+
+describe('interceptor.js — response skip filter', () => {
+  it('relays a scannable JSON response body', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env); // post directly from here on
+
+    env.fetchMock.mockResolvedValueOnce(
+      makeResponse('response-json-body-text', {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    await env.window.fetch(`${ORIGIN}/api/data`);
+    await flush();
+
+    const texts = intercepts(env).map((m) => m.text);
+    expect(texts).toContain('response-json-body-text');
+  });
+
+  it('does not relay a skipped (image) response body', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    env.fetchMock.mockResolvedValueOnce(
+      makeResponse('binary-image-bytes-here', {
+        headers: { 'content-type': 'image/png' },
+      }),
+    );
+    await env.window.fetch(`${ORIGIN}/logo.png`);
+    await flush();
+
+    expect(intercepts(env)).toHaveLength(0);
+  });
+});
+
+describe('interceptor.js — navigation (nav-race)', () => {
+  it('emits a NAVIGATION signal on history.pushState to a new URL', () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+
+    env.window.history.pushState({}, '', `${ORIGIN}/new-route`);
+
+    const nav = env.posted.mock.calls
+      .map(([m]) => m)
+      .find((m) => m?.type === '__SECRETS_SPOTTER_NAVIGATION__');
+    expect(nav).toBeTruthy();
+    expect(nav.url).toContain('/new-route');
+  });
+});
+
+describe('interceptor.js — websocket batching', () => {
+  it('batches WebSocket messages and relays them after the flush interval', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    // eslint-disable-next-line no-new
+    new env.window.WebSocket(`wss://${'app.example.test'}/sock`);
+    const socket = env.WebSocket.instances[0];
+    socket.dispatch('message', { data: 'ws-message-payload-text' });
+
+    // Still buffering inside the batch window.
+    expect(intercepts(env)).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const texts = intercepts(env).map((m) => m.text);
+    expect(texts.some((t) => t.includes('ws-message-payload-text'))).toBe(true);
+  });
+});
