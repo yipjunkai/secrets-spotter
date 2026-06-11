@@ -1,0 +1,11 @@
+[
+  { "name": "data-region", "value": "us-west-2" },
+  { "name": "data-app-version", "value": "2026.6.0" },
+  { "name": "data-feature-flags", "value": "newNav,usageGraphs" },
+  { "name": "data-project-id", "value": "prj_88231" },
+  { "name": "data-user-id", "value": "usr_10472" },
+  { "name": "content", "value": "width=device-width, initial-scale=1" },
+  { "name": "data-locale", "value": "en-US" },
+  { "name": "data-timezone", "value": "America/Los_Angeles" },
+  { "name": "data-cdn-base", "value": "https://cdn.acme.example" }
+]
