@@ -14,6 +14,12 @@ on:
 permissions:
   contents: read
 
+# Serialize the whole release pipeline: a re-run or a rapid second tag queues
+# behind the in-flight run instead of racing it to the asset upload. No
+# cancel-in-progress — never kill a half-done publish.
+concurrency:
+  group: release
+
 jobs:
   # Gate the release on the same lint + tests as CI, so a tag on a broken
   # commit can't publish artifacts.
@@ -35,6 +41,11 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+      - name: Lockfile sync check
+        # Tag-time builds must never re-resolve dependencies CI didn't test:
+        # errors if Cargo.lock is stale, and warms the cache. The build jobs
+        # below run --locked / build from this same validated commit.
+        run: cargo fetch --locked
       - name: Lint and test
         run: |
           just lint
@@ -74,7 +85,7 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: Build CLI
-        run: cargo build --release -p secrets-spotter --target ${{ matrix.target }}
+        run: cargo build --release --locked -p secrets-spotter --target ${{ matrix.target }}
       - name: Package CLI
         shell: bash
         run: |
@@ -113,6 +124,10 @@ jobs:
         uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
         with:
           tool: wasm-pack@0.15.0
+      - name: Lockfile sync check
+        # wasm-pack drives cargo internally (no --locked passthrough); enforce
+        # the committed lock here instead, same as fuzz-style workspaces do.
+        run: cargo fetch --locked
       - name: Build WASM
         run: just build-wasm
       - name: Copy licenses and README
@@ -128,9 +143,10 @@ jobs:
   publish:
     name: Attach assets to release
     needs: [build-cli, build-extension]
-    # Tag pushes only: a workflow_dispatch from a branch is a build-only dry
-    # run — everything compiles and packages, nothing is published.
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    # Tag pushes only: ANY workflow_dispatch (even from a tag ref) is a
+    # build-only dry run — everything compiles and packages, nothing is
+    # published. Publishing happens solely via the release-please tag push.
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
