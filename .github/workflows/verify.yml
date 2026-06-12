@@ -36,6 +36,11 @@ jobs:
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
+          # 'every': a file counts as code only if it matches ALL patterns —
+          # '**' AND each negated docs glob. Under the default 'some', '**'
+          # matches everything and the negations are dead letters, so docs-only
+          # PRs have silently run the full suite since the gate landed in #12.
+          predicate-quantifier: 'every'
           filters: |
             code:
               - '**'
