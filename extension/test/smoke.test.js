@@ -39,3 +39,5 @@ describe('harness smoke', () => {
     expect(chrome.__listeners.onMessage.size).toBeGreaterThan(0);
   });
 });
+
+// CI probe for #22: a JS-only diff must yield code=true, perf=false. Never merged.
