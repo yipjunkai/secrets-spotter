@@ -153,6 +153,14 @@ describe('content.js — MutationObserver', () => {
 
     await vi.advanceTimersByTimeAsync(2000);
 
+    // The debounce callback fire-and-forgets sendForScan, which awaits an
+    // async SHA-256 before chrome.runtime.sendMessage. The hash settles on
+    // the threadpool, not the microtask queue, so fake-timer advancement
+    // can't guarantee it has resolved — drain it on real time instead.
+    // (Flaked on CI: runs 27395197996, 27395772334.)
+    vi.useRealTimers();
+    await flush();
+
     const scanned = sentMessages(chrome).filter((m) => m.type === 'SCAN_TEXT');
     expect(scanned.some((m) => m.text.includes('mutation-added-unique-text'))).toBe(
       true,
