@@ -1,11 +1,31 @@
 name: security
 
+# PR-attributable security checks: dependency-review diffs the dependency
+# changes a PR itself introduces; CodeQL scans the code at this commit. Both
+# are deterministic for a given diff. The dependency-tree audits (cargo-audit
+# / npm audit) — which go red when a new upstream advisory is published, with
+# no change to this repo — live in audit.yml on a daily schedule plus
+# dependency-file paths.
+#
+# paths-ignore is safe here because branch protection requires only verify's
+# ci-passed: on a docs-only PR these checks simply don't report.
+
 on:
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "LICENSE*"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "LICENSE*"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
   schedule:
-    - cron: "0 6 * * 1" # weekly Monday
+    - cron: "0 6 * * 1" # weekly Monday — picks up new CodeQL query packs
   workflow_dispatch:
 
 concurrency:
@@ -16,16 +36,6 @@ permissions:
   contents: read
 
 jobs:
-  cargo-audit:
-    name: cargo audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-      - name: Install cargo-audit
-        run: cargo install --locked cargo-audit
-      - run: cargo audit --deny warnings
-
   dependency-review:
     name: dependency review
     runs-on: ubuntu-latest

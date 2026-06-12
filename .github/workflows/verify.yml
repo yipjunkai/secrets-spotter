@@ -28,6 +28,9 @@ jobs:
       # workflow_dispatch is a human explicitly requesting a run — never gate it.
       # (paths-filter would otherwise diff only the tip commit on dispatch.)
       code: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.code }}
+      # No dispatch override here: the perf job is PR-only anyway (it benches
+      # base-vs-head, which needs a base ref to compare against).
+      perf: ${{ steps.filter-perf.outputs.perf }}
     steps:
       # paths-filter resolves pull_request events via the GitHub API but uses
       # local git for push (and dispatch) events, so the repo must be checked
@@ -48,6 +51,21 @@ jobs:
               - '!LICENSE*'
               - '!.github/ISSUE_TEMPLATE/**'
               - '!.github/PULL_REQUEST_TEMPLATE.md'
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter-perf
+        with:
+          # Separate step: the 'code' filter above needs quantifier 'every' for
+          # its negations, while this positive list needs the default 'some'
+          # (any one match counts) — and the quantifier is step-global.
+          filters: |
+            perf:
+              - 'crates/core/src/**'
+              - 'crates/core/benches/**'
+              - 'crates/core/Cargo.toml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/scripts/perf-diff.sh'
+              - '.github/workflows/verify.yml'
 
   secret-scanning:
     name: Secret Scanning
@@ -152,10 +170,82 @@ jobs:
       - name: Run extension JS tests (vitest)
         run: npm test
 
+  perf:
+    name: perf-gate
+    # Scan-throughput regression gate (folded in from the old perf.yml).
+    # Benches the PR's base ref and the PR head on the SAME runner, then fails
+    # if any benchmark regressed past PERF_THRESHOLD. Benching both refs on
+    # one machine cancels cross-runner variance, which a stored historical
+    # baseline cannot.
+    #
+    # PR-only: the comparison needs a base ref. Release PRs are skipped — a
+    # version bump can't change scan throughput, and the bot would otherwise
+    # bench twice per release (open + lock-sync force-push). Fail-closed
+    # (== 'true', unlike the code jobs' != 'false') on purpose: an advisory
+    # bench should skip on a filter hiccup, not spend 3 min on every PR.
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.perf == 'true' &&
+      github.actor != 'secrets-spotter-release-bot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Regression ceiling as a fraction (0.10 = 10%). GitHub-hosted runner
+      # noise is typically 3-8%; this catches real regressions while absorbing it.
+      PERF_THRESHOLD: "0.10"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # Both base and head must be reachable locally to bench each in turn.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: perf
+
+      # Bench the PR head first (where actions/checkout leaves the tree).
+      - name: Bench PR head (baseline=head)
+        run: cargo bench -p secrets-spotter-core --bench scan -- --save-baseline head
+
+      # Bench the PR's base ref on the same runner. Tolerated to fail on a
+      # bootstrap PR, where the bench does not yet exist on the base ref.
+      - name: Bench base ref (baseline=base)
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -e
+          git fetch origin "$BASE_REF" --depth=1
+          # Detached + forced: discard any Cargo.lock metadata rewrite from the
+          # head bench. target/criterion/ is untouched by checkout, so the head
+          # baseline survives.
+          git checkout -f --detach "origin/$BASE_REF"
+          if [ ! -f crates/core/benches/scan.rs ]; then
+            echo "::notice::no benches/scan.rs on base ref; bootstrapping baselines this run."
+            exit 0
+          fi
+          cargo bench -p secrets-spotter-core --bench scan -- --save-baseline base
+
+      # Return to the PR head so the comparator script is present (it may not
+      # exist on the base ref). Criterion baselines persist across checkouts.
+      - name: Restore PR head
+        if: always()
+        run: git checkout -f --detach "$GITHUB_SHA"
+
+      - name: Compare baselines
+        run: bash .github/scripts/perf-diff.sh base head "$PERF_THRESHOLD"
+
   ci-passed:
     # Single check that branch protection can require, instead of listing each
     # job by name. Succeeds only if all needed jobs succeeded or were skipped;
     # fails if any failed or was cancelled. Runs even on partial failures.
+    #
+    # perf is deliberately NOT in needs while its noise floor is being trusted.
+    # To promote it to required: add 'perf' to the needs list below — skipped
+    # runs count as success here, so non-perf PRs still pass. Never promote it
+    # via branch protection instead: a paths-gated check that doesn't report
+    # would deadlock the merge (see the header comment).
     name: ci-passed
     if: ${{ always() }}
     needs: [changes, secret-scanning, version-check, lint-and-format, build, test, test-js]
