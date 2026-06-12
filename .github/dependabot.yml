@@ -32,3 +32,21 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+
+  # npm dev-deps (the extension JS test harness — vitest, happy-dom). CI
+  # installs from package-lock.json (npm ci), so without this entry the pins
+  # freeze; audit.yml's npm audit relies on Dependabot as the freshness mover.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm-minor:
+        update-types: [minor, patch]
+      npm-major:
+        update-types: [major]
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: scope
