@@ -89,7 +89,12 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-      - uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa # v0.4.0
+      # Prebuilt, checksum-verified wasm-pack — same pin as verify.yml; the
+      # replaced jetli action was unmaintained (node16) and floated on latest.
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
+        with:
+          tool: wasm-pack@0.15.0
       - name: Build WASM
         run: just build-wasm
       - name: Copy licenses and README
