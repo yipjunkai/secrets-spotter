@@ -28,10 +28,19 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+          cache: npm
       - name: Lint and test
         run: |
           just lint
           just test
+      - name: Extension JS tests
+        # The release packages the extension — gate its JS too, not just Rust.
+        run: |
+          npm ci
+          npm test
 
   build-cli:
     name: Build CLI (${{ matrix.target }})
@@ -110,6 +119,9 @@ jobs:
   publish:
     name: Attach assets to release
     needs: [build-cli, build-extension]
+    # Tag pushes only: a workflow_dispatch from a branch is a build-only dry
+    # run — everything compiles and packages, nothing is published.
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
