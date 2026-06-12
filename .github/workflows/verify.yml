@@ -23,10 +23,17 @@ jobs:
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      # workflow_dispatch is a human explicitly requesting a run — never gate it.
+      # (paths-filter would otherwise diff only the tip commit on dispatch.)
+      code: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.code }}
     steps:
-      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
+      # paths-filter resolves pull_request events via the GitHub API but uses
+      # local git for push (and dispatch) events, so the repo must be checked
+      # out first — without it, every push to main failed with git exit 128.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
           filters: |
