@@ -53,6 +53,8 @@ jobs:
       - name: Install cargo-audit
         # Prebuilt, checksum-verified binary — `cargo install` compiled it from
         # source on every run (~3 min of the old security-workflow wall clock).
+        # Deliberately manual tool pin (no Dependabot ecosystem); the daily
+        # cron exercises it, so a stale/broken pin is loud.
         uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
         with:
           tool: cargo-audit@0.22.2
@@ -81,26 +83,40 @@ jobs:
   alert:
     name: file tracking issue
     needs: [cargo-audit, npm-audit]
-    if: ${{ failure() && github.event_name == 'schedule' }}
+    # Runs on every SCHEDULED outcome: a failure files (or refreshes) the
+    # tracking issue; a success closes it. The issue therefore exists exactly
+    # while the audit is red — self-creating, self-cleaning, at most one open
+    # at a time. PR and dispatch runs never touch issues (a human is watching
+    # those). Cancelled/skipped results are no-ops.
+    if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       issues: write
     steps:
-      - name: Create or update the audit-failure issue
+      - name: Sync the audit-failure issue to the run result
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CARGO_RESULT: ${{ needs.cargo-audit.result }}
+          NPM_RESULT: ${{ needs.npm-audit.result }}
         run: |
-          gh label create audit-failure --color D93F0B \
-            --description "Scheduled dependency audit is failing" --force
           existing=$(gh issue list --label audit-failure --state open \
             --json number --jq '.[0].number // empty')
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body "Scheduled audit still failing: $RUN_URL"
-          else
-            gh issue create --title "Scheduled dependency audit failing" \
-              --label audit-failure \
-              --body "The daily \`cargo audit\` / \`npm audit\` run failed — most likely a new advisory against a pinned dependency. Run: $RUN_URL"
+          if [ "$CARGO_RESULT" = "failure" ] || [ "$NPM_RESULT" = "failure" ]; then
+            gh label create audit-failure --color D93F0B \
+              --description "Scheduled dependency audit is failing" --force
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Scheduled audit still failing: $RUN_URL"
+            else
+              gh issue create --title "Scheduled dependency audit failing" \
+                --label audit-failure \
+                --body "The daily \`cargo audit\` / \`npm audit\` run failed — most likely a new advisory against a pinned dependency. Run: $RUN_URL"
+            fi
+          elif [ "$CARGO_RESULT" = "success" ] && [ "$NPM_RESULT" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" \
+                --comment "Resolved — the scheduled audit is green again: $RUN_URL"
+            fi
           fi

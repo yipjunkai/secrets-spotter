@@ -1,5 +1,5 @@
 name: Bug report
-description: Detection bugs (missed secrets, false positives), crashes, or UI bugs.
+description: Crashes, UI bugs, or anything not covered by the detection report template.
 labels: ["bug"]
 body:
   - type: textarea

@@ -5,6 +5,10 @@ resolver = "2"
 [workspace.package]
 version = "1.1.0"
 edition = "2021"
+# MSRV contract for `cargo install` users — gated by verify.yml's msrv job.
+# 1.87 is the max rust-version declared in the locked dependency graph
+# (wit-bindgen/wasip via the wasm toolchain); Cargo.lock v4 needs >= 1.78.
+rust-version = "1.87"
 license = "MIT OR Apache-2.0"
 
 [profile.release]

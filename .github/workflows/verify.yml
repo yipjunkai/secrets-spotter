@@ -120,11 +120,18 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+      - name: Lockfile sync check
+        # Errors if Cargo.lock would need updating — a PR that edits Cargo.toml
+        # without committing the lock fails here instead of CI silently
+        # re-resolving deps the repo never tested. Also warms the cargo cache.
+        run: cargo fetch --locked
       - name: Check formatting and lint
         run: just lint
       - name: actionlint
         # Version-pinned and checksum-verified: a tampered release asset
         # fails sha256sum -c instead of running inside the lint gate.
+        # Deliberately manual pin (no Dependabot ecosystem covers it) —
+        # this step runs on every code PR, so a stale/broken pin is loud.
         run: |
           curl -sL -o actionlint.tar.gz \
             https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
@@ -152,6 +159,8 @@ jobs:
       # Prebuilt, checksum-verified wasm-pack. Replaces jetli/wasm-pack-action:
       # unmaintained since 2022, declares the node16 runtime (forced onto
       # node24 on June 16, 2026), and floated on wasm-pack latest — this pins.
+      # The tool version is a deliberately manual pin (install-action tool
+      # strings have no Dependabot ecosystem); exercised on every code PR.
       - name: Install wasm-pack
         uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
         with:
@@ -204,6 +213,25 @@ jobs:
         run: npm ci
       - name: Run extension JS tests (vitest)
         run: npm test
+
+  msrv:
+    name: MSRV
+    # The minimum supported Rust version is a contract for `cargo install`
+    # users; without this gate any PR can silently raise it.
+    needs: changes
+    if: ${{ needs.changes.outputs.code != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # master
+        with:
+          # Keep in sync with rust-version in Cargo.toml ([workspace.package]).
+          toolchain: "1.87"
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - run: cargo check --workspace --all-targets
 
   perf:
     name: perf-gate
@@ -285,7 +313,7 @@ jobs:
     # would deadlock the merge (see the header comment).
     name: ci-passed
     if: ${{ always() }}
-    needs: [changes, secret-scanning, version-check, lint-and-format, build, test, test-js]
+    needs: [changes, secret-scanning, version-check, lint-and-format, build, test, test-js, msrv]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

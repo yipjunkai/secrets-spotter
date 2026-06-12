@@ -1,0 +1,68 @@
+name: Detection report (false positive / missed secret)
+description: secrets-spotter flagged something that isn't a secret, or missed something that is.
+labels: ["bug", "detection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste a live secret.** If a real credential is involved, rotate it first,
+        then reshape the sample below: keep the prefix and overall shape, replace the
+        secret body with `X`s (e.g. `ghp_` followed by 36 `X` characters).
+        Detection only needs the *shape* — never the value. (This repo's own test
+        suite assembles secret-shaped fixtures at runtime for the same reason.)
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What happened?
+      options:
+        - False positive — flagged text that is not a secret
+        - Missed secret — a real secret was not flagged
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where?
+      options:
+        - CLI
+        - Chrome extension (page/DOM)
+        - Chrome extension (network response)
+        - Both / multiple
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Reshaped sample
+      description: The triggering (or missed) text with the secret body replaced by Xs, plus a line or two of surrounding context — matching depends on it.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: detector
+    attributes:
+      label: Detector / rule name (if known)
+      description: Shown in the finding output, e.g. `github-pat`, `aws-access-key-id`.
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: e.g. "should not match — this is a SHA-256 hex digest, not a key" / "should match — valid Stripe live key shape".
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: e.g. 1.1.0 — from `secrets-spotter --version` or the extension popup
+    validations:
+      required: true
+  - type: input
+    id: source-kind
+    attributes:
+      label: Content type / source (optional)
+      placeholder: e.g. minified JS bundle, JSON API response, source map, .env file
+    validations:
+      required: false
