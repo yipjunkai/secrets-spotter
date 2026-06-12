@@ -30,7 +30,9 @@ on:
 
 concurrency:
   group: security-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded runs on PRs, but never on main — same rationale as
+  # verify.yml: every main commit keeps its own verdict.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -39,28 +41,41 @@ jobs:
   dependency-review:
     name: dependency review
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name == 'pull_request'
     permissions:
       pull-requests: write
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5
         with:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
 
-  codeql-javascript:
-    name: codeql (javascript)
+  codeql:
+    name: codeql (${{ matrix.language }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # One language's failure shouldn't hide another's findings.
+      fail-fast: false
+      matrix:
+        # javascript = the extension; actions = the workflows themselves
+        # (injection patterns); rust = the core scanner.
+        language: [javascript, actions, rust]
     permissions:
       security-events: write
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:
-          languages: javascript
+          languages: ${{ matrix.language }}
       - uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:
-          category: javascript
+          category: ${{ matrix.language }}
