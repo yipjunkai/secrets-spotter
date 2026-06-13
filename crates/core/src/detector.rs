@@ -1,5 +1,4 @@
 use lazy_static::lazy_static;
-use memchr::memmem;
 use regex::{Regex, RegexSet};
 
 use crate::patterns::PATTERNS;
@@ -7,9 +6,12 @@ use crate::types::{SecretFinding, SecretKind};
 
 lazy_static! {
     // Values that are clearly not secrets: plain lowercase words with hyphens,
-    // common error/status strings, placeholder values
+    // common error/status strings, placeholder values.
+    // `(?u-i:.)` re-enables Unicode (case-folding off) for just the dot
+    // constructs — under `-u` a bare `.` can match invalid UTF-8, which the
+    // regex crate rejects on &str patterns. Needs no optional unicode-* feature.
     static ref FALSE_POSITIVE: Regex = Regex::new(
-        r#"(?i)^(true|false|null|none|undefined|error|invalid|missing|wrong|expired|default|example|changeme|replace.me|your[_-]?.+|TODO|FIXME|xxx+|placeholder|test(ing)?|sample|dummy|fake|mock|N/?A|TBD)$"#
+        r#"(?i-u)^(true|false|null|none|undefined|error|invalid|missing|wrong|expired|default|example|changeme|replace(?u-i:.)me|your[_-]?(?u-i:.+)|TODO|FIXME|xxx+|placeholder|test(ing)?|sample|dummy|fake|mock|N/?A|TBD)$"#
     ).unwrap();
 
     // Looks like plain English: all lowercase letters and hyphens, no digits or mixed case
@@ -19,12 +21,12 @@ lazy_static! {
 
     // Value looks like a URL or file path — not a secret
     static ref URL_OR_PATH: Regex = Regex::new(
-        r"(?i)^(https?://|ftp://|s3://|gs://|/[a-z]|\.\.?/|[a-z]:\\)"
+        r"(?i-u)^(https?://|ftp://|s3://|gs://|/[a-z]|\.\.?/|[a-z]:\\)"
     ).unwrap();
 
     // Value contains a file extension — likely a filename/URL, not a secret
     static ref HAS_FILE_EXT: Regex = Regex::new(
-        r"\.(pdf|html?|js|css|png|jpg|jpeg|gif|svg|woff2?|ttf|json|xml|ya?ml|txt|md|csv|zip|gz|tar|exe|dmg|pkg|deb|rpm|sh|bat|py|rb|go|rs|java|ts|tsx|jsx|vue|php)\b"
+        r"\.(pdf|html?|js|css|png|jpg|jpeg|gif|svg|woff2?|ttf|json|xml|ya?ml|txt|md|csv|zip|gz|tar|exe|dmg|pkg|deb|rpm|sh|bat|py|rb|go|rs|java|ts|tsx|jsx|vue|php)(?-u:\b)"
     ).unwrap();
 
     // Value looks like a code identifier (variable, class, or constant name).
@@ -57,10 +59,6 @@ impl SecretDetector {
         let candidates = REGEX_SET.matches(text);
         for idx in candidates.iter() {
             let pattern = &PATTERNS[idx];
-
-            if !Self::prefix_matches(pattern.prefixes, text) {
-                continue;
-            }
 
             // Known-prefix patterns have no capture groups — use faster find_iter.
             // Keyword/generic patterns use capture groups to extract the value.
@@ -191,16 +189,6 @@ impl SecretDetector {
             }
             _ => false,
         }
-    }
-
-    fn prefix_matches(prefixes: &[&str], text: &str) -> bool {
-        if prefixes.is_empty() {
-            return true;
-        }
-        let haystack = text.as_bytes();
-        prefixes
-            .iter()
-            .any(|prefix| memmem::find(haystack, prefix.as_bytes()).is_some())
     }
 
     /// Shannon entropy in bits per character

@@ -167,6 +167,10 @@ jobs:
           tool: wasm-pack@0.15.0
       - name: Build
         run: just build
+      # Gate 2: fail the build if the shipped wasm exceeds its size budget —
+      # the deterministic counterpart to the perf job's throughput gate.
+      - name: WASM size budget
+        run: just check-wasm-size
 
   test:
     name: Test (${{ matrix.os }})

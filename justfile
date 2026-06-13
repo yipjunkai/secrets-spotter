@@ -1,5 +1,10 @@
 wasm-out := "extension/wasm"
 
+# Hard ceiling on the shipped wasm (bytes). ASCII-only regex keeps it ~669 KB;
+# this catches a Unicode-table regression (which jumps it back to ~970 KB). The
+# headroom (~12%) absorbs toolchain drift — CI's wasm-pack differs from local.
+wasm-budget := "770000"
+
 # Build everything (CLI + WASM in parallel; fails if either build fails)
 build:
     #!/usr/bin/env bash
@@ -17,6 +22,20 @@ build-cli:
 build-wasm:
     wasm-pack build crates/wasm --target web --out-dir ../../{{wasm-out}} --release
     rm -f {{wasm-out}}/.gitignore {{wasm-out}}/package.json {{wasm-out}}/*.d.ts
+
+# Deterministic wasm size gate (Gate 2). Asserts the built artifact is within
+# `wasm-budget`. Build first (`just build-wasm`); CI runs it after `just build`.
+check-wasm-size:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    f="{{wasm-out}}/secrets_spotter_wasm_bg.wasm"
+    [ -f "$f" ] || { echo "::error::$f not built — run 'just build-wasm' first"; exit 1; }
+    size=$(wc -c < "$f" | tr -d ' ')
+    echo "wasm size: ${size} bytes (budget {{wasm-budget}})"
+    if [ "$size" -gt "{{wasm-budget}}" ]; then
+      echo "::error::wasm ${size}B exceeds budget {{wasm-budget}}B — did a regex re-enable Unicode tables?"
+      exit 1
+    fi
 
 # Run all workspace tests
 test:
