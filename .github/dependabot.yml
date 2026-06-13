@@ -33,6 +33,25 @@ updates:
       prefix: "chore"
       include: scope
 
+  # Fuzz deps (Cargo). fuzz/ is a standalone workspace excluded from the root
+  # one, so it has its own committed Cargo.lock the `/` entry above doesn't see.
+  # fuzz.yml enforces that lock with `cargo fetch --locked`, so it needs its own
+  # mover or the pins freeze.
+  - package-ecosystem: cargo
+    directory: /fuzz
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      fuzz-minor:
+        update-types: [minor, patch]
+      fuzz-major:
+        update-types: [major]
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: scope
+
   # npm dev-deps (the extension JS test harness — vitest, happy-dom). CI
   # installs from package-lock.json (npm ci), so without this entry the pins
   # freeze; audit.yml's npm audit relies on Dependabot as the freshness mover.

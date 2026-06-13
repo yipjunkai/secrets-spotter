@@ -19,6 +19,8 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
+      - "fuzz/Cargo.toml"
+      - "fuzz/Cargo.lock"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/audit.yml"
@@ -27,6 +29,8 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
+      - "fuzz/Cargo.toml"
+      - "fuzz/Cargo.lock"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/audit.yml"
@@ -60,6 +64,10 @@ jobs:
           tool: cargo-audit@0.22.2
       - name: Audit the workspace lockfile
         run: cargo audit --deny warnings
+      - name: Audit the fuzz workspace lockfile
+        # fuzz/ is a standalone workspace with its own committed lock; the
+        # default invocation above only reads ./Cargo.lock.
+        run: cargo audit --deny warnings --file fuzz/Cargo.lock
 
   npm-audit:
     name: npm audit
