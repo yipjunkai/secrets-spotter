@@ -41,13 +41,14 @@ fn severity_colored(severity: &Severity) -> colored::ColoredString {
 
 fn print_text(results: &[ScanResult], reveal: bool) -> Result<()> {
     for result in results {
-        for finding in &result.findings {
+        for cf in &result.findings {
+            let finding = &cf.finding;
             println!(
                 "[{}] {}",
                 severity_colored(&finding.severity),
                 finding.label
             );
-            println!("  File: {}:{}", result.source, finding.start);
+            println!("  File: {}:{}", result.source, cf.line);
             println!("  Match: {}", shown_match(finding, reveal));
             println!();
         }
@@ -68,10 +69,11 @@ struct JsonFinding {
 fn print_json(results: &[ScanResult], reveal: bool) -> Result<()> {
     let mut all: Vec<JsonFinding> = Vec::new();
     for result in results {
-        for finding in &result.findings {
+        for cf in &result.findings {
+            let finding = &cf.finding;
             all.push(JsonFinding {
                 file: result.source.clone(),
-                line: finding.start,
+                line: cf.line,
                 kind: format!("{:?}", finding.kind),
                 label: finding.label.clone(),
                 severity: format!("{:?}", finding.severity),
@@ -160,7 +162,8 @@ fn print_sarif(results: &[ScanResult], reveal: bool) -> Result<()> {
     let mut sarif_results = Vec::new();
 
     for result in results {
-        for finding in &result.findings {
+        for cf in &result.findings {
+            let finding = &cf.finding;
             sarif_results.push(SarifResult {
                 rule_id: format!("{:?}", finding.kind),
                 level: sarif_level(&finding.severity).to_string(),
@@ -173,7 +176,7 @@ fn print_sarif(results: &[ScanResult], reveal: bool) -> Result<()> {
                             uri: result.source.clone(),
                         },
                         region: SarifRegion {
-                            start_line: finding.start,
+                            start_line: cf.line,
                         },
                     },
                 }],

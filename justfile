@@ -14,9 +14,9 @@ build:
     wait $pid_cli
     wait $pid_wasm
 
-# Build CLI binary
+# Build CLI binary (speed-optimized profile → target/release-cli/)
 build-cli:
-    cargo build --release -p secrets-spotter
+    cargo build --profile release-cli -p secrets-spotter
 
 # Build WASM for Chrome extension
 build-wasm:

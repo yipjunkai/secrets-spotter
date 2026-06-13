@@ -101,6 +101,8 @@ fn run() -> Result<()> {
         vec![scan::scan_stdin(cli.max_size)?]
     } else {
         let mut all = Vec::new();
+        // scan_dir emits its own skip notice; tally direct-file-arg skips here.
+        let mut oversized = 0usize;
         for path in &cli.paths {
             let p = std::path::Path::new(path);
             if p.is_dir() {
@@ -111,9 +113,14 @@ fn run() -> Result<()> {
                     cli.no_ignore,
                 )?);
             } else {
-                all.push(scan::scan_file(p, cli.max_size)?);
+                let r = scan::scan_file(p, cli.max_size)?;
+                if r.skipped == Some(scan::SkipReason::Oversized) {
+                    oversized += 1;
+                }
+                all.push(r);
             }
         }
+        scan::notify_skipped(oversized);
         all
     };
 
@@ -121,7 +128,8 @@ fn run() -> Result<()> {
     let results: Vec<ScanResult> = results
         .into_iter()
         .map(|mut r| {
-            r.findings.retain(|f| cli.severity.matches(&f.severity));
+            r.findings
+                .retain(|f| cli.severity.matches(&f.finding.severity));
             r
         })
         .filter(|r| !r.findings.is_empty())

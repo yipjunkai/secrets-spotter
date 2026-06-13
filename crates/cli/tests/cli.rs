@@ -127,3 +127,30 @@ fn no_ignore_scans_gitignored_files() {
         .code(1)
         .stdout(predicate::str::contains("AWS Access Key ID"));
 }
+
+#[test]
+fn reports_the_finding_line_number() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("creds.txt");
+    // Secret on the 3rd line.
+    fs::write(&file, format!("first line\nsecond line\nkey = {}\n", aws_key())).unwrap();
+    bin()
+        .arg(&file)
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("creds.txt:3"));
+}
+
+#[test]
+fn warns_about_oversized_skipped_files() {
+    let dir = tempdir().unwrap();
+    let file = dir.path().join("big.txt");
+    fs::write(&file, format!("key = {}\n", aws_key())).unwrap();
+    // max-size below the file size → skipped entirely → exit 0 + a stderr notice.
+    bin()
+        .args(["--max-size", "5"])
+        .arg(&file)
+        .assert()
+        .code(0)
+        .stderr(predicate::str::contains("over the size limit"));
+}
