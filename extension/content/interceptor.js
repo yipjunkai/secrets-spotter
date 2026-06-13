@@ -70,6 +70,33 @@
     }
   }
 
+  // Read a response body but stop at `cap` characters instead of materializing
+  // the whole thing — a multi-MB response shouldn't be fully buffered in memory
+  // just to scan the first 2 MB. Streams via the body reader and cancels once
+  // the cap is reached; falls back to text() when no stream is exposed (older
+  // engines, or an already-buffered body).
+  async function readCapped(response, cap) {
+    const stream = response.body;
+    if (!stream || typeof stream.getReader !== 'function') {
+      const text = await response.text();
+      return text.length > cap ? text.slice(0, cap) : text;
+    }
+    const reader = stream.getReader();
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    let out = '';
+    try {
+      while (out.length < cap) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        out += decoder.decode(value, { stream: true });
+      }
+      out += decoder.decode(); // flush any trailing partial code point
+    } finally {
+      reader.cancel().catch(() => {});
+    }
+    return out.length > cap ? out.slice(0, cap) : out;
+  }
+
   // Patch fetch() — request + response headers & body
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
@@ -135,9 +162,9 @@
           }
         } catch {}
 
-        // Scan response body
+        // Scan response body — streamed and capped, not fully buffered.
         const clone = response.clone();
-        clone.text().then((body) => {
+        readCapped(clone, MAX_SIZE).then((body) => {
           postIntercepted(url, body, 'fetch', contentType);
         }).catch(() => {});
       }

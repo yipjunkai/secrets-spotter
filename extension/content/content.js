@@ -113,13 +113,23 @@
     return pairs.length > 0 ? JSON.stringify(pairs) : '';
   }
 
-  function scanPage() {
-    sendForScan(getPageSource(), window.location.href, 'dom');
+  // Defer the synchronous DOM serialization (outerHTML) + full-tree attribute
+  // walk off the critical path: on a large page these block the main thread,
+  // and on load/navigation that stall is user-visible. requestIdleCallback runs
+  // them when the page is idle (timeout-bounded so a busy page still scans);
+  // setTimeout is the fallback where it's unavailable.
+  const scheduleIdle = window.requestIdleCallback
+    ? (cb) => window.requestIdleCallback(cb, { timeout: 2000 })
+    : (cb) => setTimeout(cb, 0);
 
-    const structured = extractStructuredSecrets();
-    if (structured) {
-      sendForScan(structured, window.location.href, 'dom:structured');
-    }
+  function scanPage() {
+    scheduleIdle(() => {
+      sendForScan(getPageSource(), window.location.href, 'dom');
+      const structured = extractStructuredSecrets();
+      if (structured) {
+        sendForScan(structured, window.location.href, 'dom:structured');
+      }
+    });
   }
 
   // Listen for intercepted network responses from the MAIN world script
@@ -153,31 +163,54 @@
   }
 
   let pendingTexts = [];
+  let pendingBytes = 0;
+  let maxWaitTimer = null;
+  const MAX_PENDING_BYTES = 512_000; // flush early once this much text queues
+  const FLUSH_DEBOUNCE = 2000;
+  const MAX_FLUSH_WAIT = 10_000; // hard cap so continuous mutation can't starve the flush
+
+  function flushPending() {
+    clearTimeout(scanTimeout);
+    scanTimeout = null;
+    clearTimeout(maxWaitTimer);
+    maxWaitTimer = null;
+    if (pendingTexts.length === 0) return;
+    const combined = pendingTexts.join('\n');
+    pendingTexts = [];
+    pendingBytes = 0;
+    if (combined.length > 0) {
+      sendForScan(combined, window.location.href, 'dom');
+    }
+  }
 
   observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) {
-          if (pendingTexts.length < 1000) {
-            const text = node.textContent;
-            if (text && text.length >= 10) {
-              pendingTexts.push(text);
-            }
+          const text = node.textContent;
+          if (text && text.length >= 10) {
+            pendingTexts.push(text);
+            pendingBytes += text.length;
           }
         }
       }
     }
     if (pendingTexts.length === 0) return;
 
-    clearTimeout(scanTimeout);
-    scanTimeout = setTimeout(() => {
-      const combined = pendingTexts.join('\n');
-      pendingTexts = [];
+    // Byte budget hit — flush now rather than queue text unbounded. (sendForScan
+    // separately caps a single oversized node at MAX_SCAN_SIZE.)
+    if (pendingBytes >= MAX_PENDING_BYTES) {
+      flushPending();
+      return;
+    }
 
-      if (combined.length > 0) {
-        sendForScan(combined, window.location.href, 'dom');
-      }
-    }, 2000);
+    // Debounce coalesces bursts; a non-resetting max-wait timer caps total
+    // latency so a page mutating faster than the debounce can't starve it.
+    clearTimeout(scanTimeout);
+    scanTimeout = setTimeout(flushPending, FLUSH_DEBOUNCE);
+    if (!maxWaitTimer) {
+      maxWaitTimer = setTimeout(flushPending, MAX_FLUSH_WAIT);
+    }
   });
 
   function observeDom() {
@@ -195,7 +228,10 @@
       contextCheckInterval = null;
       if (observer) observer.disconnect();
       clearTimeout(scanTimeout);
+      clearTimeout(maxWaitTimer);
+      maxWaitTimer = null;
       pendingTexts = [];
+      pendingBytes = 0;
       // Signal MAIN world interceptor to clean up too
       window.dispatchEvent(new Event('__SECRETS_SPOTTER_CLEANUP__'));
     }
@@ -209,7 +245,10 @@
     contextCheckInterval = null;
     if (observer) observer.disconnect();
     clearTimeout(scanTimeout);
+    clearTimeout(maxWaitTimer);
+    maxWaitTimer = null;
     pendingTexts = [];
+    pendingBytes = 0;
   });
 
   window.addEventListener('pageshow', (event) => {

@@ -168,6 +168,71 @@ describe('content.js — MutationObserver', () => {
   });
 });
 
+describe('content.js — capture bounding', () => {
+  it('defers the DOM walk through an idle callback instead of running it inline', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    // Force a capturing requestIdleCallback (happy-dom exposes it as a
+    // getter-only undefined stub, so defineProperty is required to shadow it).
+    const idleCbs = [];
+    Object.defineProperty(env.window, 'requestIdleCallback', {
+      configurable: true,
+      value: (cb) => idleCbs.push(cb),
+    });
+    const chrome = createChrome();
+    loadContentScript('content/content.js', env, { chrome });
+    env.emit('load'); // cover the case where the load scan waits on the load event
+
+    // The heavy outerHTML + attribute walk was scheduled, not run inline.
+    expect(idleCbs.length).toBeGreaterThan(0);
+    expect(sentMessages(chrome).filter((m) => m.type === 'SCAN_TEXT')).toHaveLength(0);
+
+    // Running the captured callback performs the deferred scan.
+    idleCbs.forEach((cb) => cb({ didTimeout: false, timeRemaining: () => 50 }));
+    await flush();
+    expect(sentMessages(chrome).some((m) => m.type === 'SCAN_TEXT')).toBe(true);
+  });
+
+  it('flushes immediately when the pending byte budget is exceeded', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    const chrome = createChrome();
+    loadContentScript('content/content.js', env, { chrome });
+    await vi.advanceTimersByTimeAsync(0); // settle the load scan
+    chrome.runtime.sendMessage.mockClear();
+
+    // A single added node larger than MAX_PENDING_BYTES (512 KB) → flush now,
+    // without waiting out the 2s debounce.
+    env.mutationObservers[0].cb([
+      { addedNodes: [{ nodeType: 1, textContent: 'B'.repeat(600_000) }] },
+    ]);
+    await vi.advanceTimersByTimeAsync(0); // microtasks only, NOT the 2s debounce
+
+    const scanned = sentMessages(chrome).filter((m) => m.type === 'SCAN_TEXT');
+    expect(scanned.some((m) => m.text.length >= 500_000)).toBe(true);
+  });
+
+  it('flushes by the max-wait even while mutations keep resetting the debounce', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    const chrome = createChrome();
+    loadContentScript('content/content.js', env, { chrome });
+    await vi.advanceTimersByTimeAsync(0);
+    chrome.runtime.sendMessage.mockClear();
+
+    const observer = env.mutationObservers[0];
+    // A mutation every 1s — each resets the 2s debounce, so without the 10s
+    // max-wait cap it would never flush.
+    for (let i = 0; i < 12; i += 1) {
+      observer.cb([
+        { addedNodes: [{ nodeType: 1, textContent: `starve-tick-${i}-padding` }] },
+      ]);
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+
+    expect(sentMessages(chrome).some((m) => m.type === 'SCAN_TEXT')).toBe(true);
+  });
+});
+
 describe('content.js — context invalidation', () => {
   it('tears down the observer when the extension context goes away', async () => {
     vi.useFakeTimers();
