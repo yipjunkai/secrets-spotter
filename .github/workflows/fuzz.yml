@@ -1,0 +1,142 @@
+name: fuzz
+
+# Coverage-guided fuzzing of the scanner's input surface (see fuzz/README.md).
+# PR runs are a 60s-per-target smoke on changes to the fuzzed code; the nightly
+# runs 300s per target with a corpus that compounds across nights. A scheduled
+# failure (a found crash) files or refreshes a single tracking issue via the
+# alert job; a green night closes it — without that, a 03:00 crash dies unseen.
+#
+# Advisory: deliberately NOT part of verify's required ci-passed aggregate.
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # daily 03:00 UTC (audit 05:00, security 06:00, stale 07:00)
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "crates/core/src/**"
+      - "fuzz/**"
+      - ".github/workflows/fuzz.yml"
+
+concurrency:
+  group: fuzz-${{ github.workflow }}-${{ github.ref }}
+  # Cancel superseded PR runs; never cancel a main-ref run (push/cron).
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [scan_text, merge_findings, parse_cookies, format_attributes, should_scan]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Install the pinned nightly from fuzz/rust-toolchain.toml
+        # Single source of truth for the dated-nightly pin: rustup reads the
+        # channel from the toolchain file, so a bump is a one-line change there
+        # and nothing in this workflow needs to stay in sync.
+        run: rustup toolchain install
+        working-directory: fuzz
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: fuzz
+      - name: Install cargo-fuzz
+        # Prebuilt, checksum-verified binary (vs a ~min source compile). The
+        # tool version is a deliberately manual pin — no Dependabot ecosystem
+        # covers install-action tool strings; every run exercises it.
+        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
+        with:
+          tool: cargo-fuzz@0.13.2
+      - name: Restore evolved corpus
+        # The run_id-suffixed key never hits exactly, so the post-step always
+        # saves this run's evolved corpus; restore-keys pulls the newest prior
+        # one, so coverage compounds across nightly runs instead of restarting.
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+      - name: Verify fuzz/Cargo.lock is in sync
+        # `cargo fuzz run` has no --locked passthrough, so enforce the committed
+        # lock here: `cargo fetch --locked` errors if it would need updating and
+        # warms the cache. Dependabot (/fuzz entry) keeps these pins fresh.
+        run: cargo fetch --locked
+        working-directory: fuzz
+      - name: Fuzz ${{ matrix.target }}
+        # PR: 60s smoke per target. Nightly/dispatch: 300s per target.
+        #
+        # corpus/<target> (cache-restored, writable) is the working set;
+        # seeds/<target> is the committed read-only baseline — corpus FIRST so
+        # libFuzzer never writes evolved inputs back into the seed dir.
+        #
+        # --target pinned to the gnu host triple: install-action ships cargo-fuzz
+        # as a static MUSL binary and cargo-fuzz defaults the build target to its
+        # own, where ASAN + statically-linked libc is unsupported.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            DURATION=60
+          else
+            DURATION=300
+          fi
+          mkdir -p corpus/${{ matrix.target }}
+          cargo fuzz run --target x86_64-unknown-linux-gnu \
+            ${{ matrix.target }} corpus/${{ matrix.target }} seeds/${{ matrix.target }} \
+            -- -max_total_time=$DURATION
+        working-directory: fuzz
+      - name: Upload crashes (on failure)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: fuzz-crashes-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          retention-days: 30
+
+  alert:
+    name: file tracking issue
+    needs: [fuzz]
+    # The nightly run is the only unattended fuzz trigger — a crash found at
+    # 03:00 must not sit silently in the Actions tab. A scheduled failure files
+    # (or refreshes) the tracking issue; a scheduled success closes it, so the
+    # issue exists exactly while the fuzz lane is red. needs.fuzz.result is the
+    # aggregate across the matrix (failure if any target failed). PR and
+    # dispatch runs never touch issues (a human is watching those).
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Sync the fuzz-crash issue to the run result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FUZZ_RESULT: ${{ needs.fuzz.result }}
+        run: |
+          existing=$(gh issue list --label fuzz-crash --state open \
+            --json number --jq '.[0].number // empty')
+          if [ "$FUZZ_RESULT" = "failure" ]; then
+            gh label create fuzz-crash --color B60205 \
+              --description "Scheduled fuzz run is failing" --force
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Nightly fuzz still failing: $RUN_URL"
+            else
+              gh issue create --title "Nightly fuzz run failed — possible crash found" \
+                --label fuzz-crash \
+                --body "A scheduled fuzz target failed. If it is a real crash, the reproducing input is attached to the run as a \`fuzz-crashes-<target>\` artifact (30-day retention) — reproduce with \`cargo fuzz run <target> <file>\`, minimize, and fix; this issue then closes itself on the next green night. Run: $RUN_URL"
+            fi
+          elif [ "$FUZZ_RESULT" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" \
+                --comment "Resolved — the nightly fuzz run is green again: $RUN_URL"
+            fi
+          fi
