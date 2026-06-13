@@ -1,0 +1,57 @@
+# Standalone workspace — fuzz/ is intentionally excluded from the root
+# /Cargo.toml (which also lists `exclude = ["fuzz"]`) so the nightly +
+# libfuzzer-sys deps never infect normal `cargo check` / `test` / `build`.
+[workspace]
+
+[package]
+name = "secrets-spotter-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+# `fixtures` exposes the deterministic secret-shape helpers used to generate
+# the runtime corpus and the merge target's fixed "existing" set.
+secrets-spotter-core = { path = "../crates/core", features = ["fixtures"] }
+
+# Each fuzz target is its own binary. Names + paths are explicit so cargo-fuzz
+# finds them without convention magic; test/doc/bench off (these aren't either).
+[[bin]]
+name = "scan_text"
+path = "fuzz_targets/scan_text.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "merge_findings"
+path = "fuzz_targets/merge_findings.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_cookies"
+path = "fuzz_targets/parse_cookies.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "format_attributes"
+path = "fuzz_targets/format_attributes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "should_scan"
+path = "fuzz_targets/should_scan.rs"
+test = false
+doc = false
+bench = false

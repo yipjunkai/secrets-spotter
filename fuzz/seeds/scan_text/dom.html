@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-app-version="2026.6.0">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme Dashboard — Overview</title>
+    <meta name="description" content="Monitor deployments, usage, and billing for your Acme projects in one place." />
+    <meta name="theme-color" content="#0b5fff" />
+    <meta property="og:title" content="Acme Dashboard" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://app.acme.example/dashboard" />
+    <link rel="icon" href="/static/favicon.ico" />
+    <link rel="stylesheet" href="/static/css/app.5f2c9a.css" />
+    <link rel="preconnect" href="https://fonts.example.net" />
+    <script type="application/json" id="bootstrap-config">
+      {
+        "apiBase": "https://api.acme.example/v3",
+        "cdnBase": "https://cdn.acme.example",
+        "locale": "en-US",
+        "timezone": "America/Los_Angeles",
+        "buildId": "9f3c1",
+        "features": { "newNav": true, "betaSearch": false, "usageGraphs": true },
+        "limits": { "projects": 25, "seats": 10, "ratePerMinute": 600 }
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="topbar" data-region="us-west-2">
+      <nav aria-label="Primary">
+        <a href="/dashboard" class="brand" aria-current="page">Acme</a>
+        <ul class="nav-list">
+          <li><a href="/dashboard/projects">Projects</a></li>
+          <li><a href="/dashboard/usage">Usage</a></li>
+          <li><a href="/dashboard/billing">Billing</a></li>
+          <li><a href="/dashboard/settings">Settings</a></li>
+        </ul>
+        <form class="searchbar" role="search" action="/dashboard/search" method="get">
+          <label for="q" class="visually-hidden">Search projects</label>
+          <input id="q" name="q" type="search" placeholder="Search projects…" autocomplete="off" />
+        </form>
+        <button class="avatar-button" data-user-id="usr_10472" aria-haspopup="menu">
+          <img src="/static/img/avatar-default.png" alt="Account menu" width="32" height="32" />
+        </button>
+      </nav>
+    </header>
+
+    <main id="main" class="layout">
+      <section class="summary" aria-labelledby="summary-heading">
+        <h1 id="summary-heading">Overview</h1>
+        <div class="cards">
+          <article class="card" data-metric="deployments">
+            <h2>Deployments</h2>
+            <p class="big-number">1,284</p>
+            <p class="trend trend-up">+4.2% vs last week</p>
+          </article>
+          <article class="card" data-metric="requests">
+            <h2>Requests</h2>
+            <p class="big-number">8.1M</p>
+            <p class="trend trend-down">−1.1% vs last week</p>
+          </article>
+          <article class="card" data-metric="errors">
+            <h2>Error rate</h2>
+            <p class="big-number">0.04%</p>
+            <p class="trend trend-flat">no change</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="projects" aria-labelledby="projects-heading">
+        <h2 id="projects-heading">Recent projects</h2>
+        <table class="data-table">
+          <thead>
+            <tr><th>Name</th><th>Environment</th><th>Last deploy</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr data-project-id="prj_88231"><td>storefront-web</td><td>production</td><td>2026-06-09 14:21</td><td><span class="badge badge-ok">healthy</span></td></tr>
+            <tr data-project-id="prj_88232"><td>checkout-api</td><td>production</td><td>2026-06-09 13:58</td><td><span class="badge badge-ok">healthy</span></td></tr>
+            <tr data-project-id="prj_88240"><td>marketing-site</td><td>preview</td><td>2026-06-10 08:02</td><td><span class="badge badge-warn">building</span></td></tr>
+            <tr data-project-id="prj_88255"><td>internal-tools</td><td>staging</td><td>2026-06-08 19:44</td><td><span class="badge badge-ok">healthy</span></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <aside class="activity" aria-labelledby="activity-heading">
+        <h2 id="activity-heading">Activity</h2>
+        <ol class="feed">
+          <li>Deployed <strong>checkout-api</strong> to production — 2 minutes ago</li>
+          <li>Invited <strong>dana@acme.example</strong> to the team — 1 hour ago</li>
+          <li>Rotated database credentials for <strong>storefront-web</strong> — 3 hours ago</li>
+          <li>Updated billing plan to <strong>Scale</strong> — yesterday</li>
+        </ol>
+      </aside>
+    </main>
+
+    <footer class="sitefooter">
+      <p>&copy; 2026 Acme, Inc. · <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/status">Status</a></p>
+    </footer>
+
+    <script src="/static/js/runtime.4ab19c.js" defer></script>
+    <script src="/static/js/app.4ab19c.js" defer></script>
+    <script>
+      window.__ACME__ = window.__ACME__ || {};
+      window.__ACME__.page = "dashboard.overview";
+      window.__ACME__.startedAt = Date.now();
+      document.documentElement.classList.toggle("js-enabled", true);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+# Build output and run-time state. Seeds, the dictionary, the README, the
+# manifests, and the committed Cargo.lock are tracked; everything below is
+# machine-generated and gitignored — which also keeps it invisible to
+# `just scan-self` (the CLI honours .gitignore), so an evolved corpus or a
+# crash reproducer can never trip the dogfood scan.
+target/
+corpus/
+artifacts/
+coverage/

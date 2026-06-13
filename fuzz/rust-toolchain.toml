@@ -1,0 +1,8 @@
+# Single source of truth for the fuzz nightly pin. cargo-fuzz/libfuzzer-sys
+# need a nightly for `-Z sanitizer`; a dated pin keeps runs reproducible and
+# guards against a fresh nightly breaking the build. Bump deliberately — the
+# fuzz.yml workflow reads the channel from here (`rustup toolchain install`),
+# so nothing in CI needs to stay in sync with this value.
+[toolchain]
+channel = "nightly-2026-05-26"
+components = ["rust-src"]

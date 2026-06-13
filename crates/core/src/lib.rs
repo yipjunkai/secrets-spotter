@@ -7,8 +7,10 @@ pub mod types;
 
 #[cfg(test)]
 mod pattern_tests;
-#[cfg(test)]
-mod test_fixtures;
+// Public under the `fixtures` feature so the fuzz workspace can reuse the same
+// shape-assembly the tests use; still compiled for the crate's own tests.
+#[cfg(any(test, feature = "fixtures"))]
+pub mod test_fixtures;
 
 use crate::detector::SecretDetector;
 use crate::types::SecretFinding;

@@ -1,0 +1,58 @@
+{
+  "data": {
+    "projects": [
+      {
+        "id": "prj_88231",
+        "name": "storefront-web",
+        "environment": "production",
+        "region": "us-west-2",
+        "healthy": true,
+        "lastDeployAt": "2026-06-09T14:21:07Z",
+        "framework": "next",
+        "domains": ["acme.example", "www.acme.example"],
+        "owner": { "id": "usr_10472", "email": "dana@acme.example", "role": "admin" }
+      },
+      {
+        "id": "prj_88232",
+        "name": "checkout-api",
+        "environment": "production",
+        "region": "us-east-1",
+        "healthy": true,
+        "lastDeployAt": "2026-06-09T13:58:44Z",
+        "framework": "node",
+        "domains": ["api.acme.example"],
+        "owner": { "id": "usr_10472", "email": "dana@acme.example", "role": "admin" }
+      },
+      {
+        "id": "prj_88240",
+        "name": "marketing-site",
+        "environment": "preview",
+        "region": "us-west-2",
+        "healthy": false,
+        "lastDeployAt": "2026-06-10T08:02:19Z",
+        "framework": "astro",
+        "domains": ["preview-88240.acme.example"],
+        "owner": { "id": "usr_20815", "email": "lee@acme.example", "role": "member" }
+      }
+    ],
+    "usage": {
+      "window": "7d",
+      "requests": 8112934,
+      "errors": 3201,
+      "bandwidthGb": 1294.7,
+      "byDay": [1100221, 1180044, 1205510, 1099832, 1240118, 980221, 1306988]
+    },
+    "billing": {
+      "plan": "scale",
+      "currency": "USD",
+      "amountDue": 4200,
+      "renewsAt": "2026-07-01T00:00:00Z",
+      "seats": { "included": 10, "used": 7 }
+    }
+  },
+  "meta": {
+    "requestId": "req-2026-06-10-aa17",
+    "generatedAt": "2026-06-10T09:00:00Z",
+    "version": "v3"
+  }
+}

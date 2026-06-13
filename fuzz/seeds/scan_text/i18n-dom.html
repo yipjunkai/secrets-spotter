@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-Hans" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme 控制台 — 概览</title>
+    <meta name="description" content="在一个界面中监控您的 Acme 项目的部署、用量和账单。" />
+    <link rel="stylesheet" href="/static/css/app.5f2c9a.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <nav aria-label="主导航">
+        <a href="/dashboard" class="brand">Acme</a>
+        <ul class="nav-list">
+          <li><a href="/dashboard/projects">项目</a></li>
+          <li><a href="/dashboard/usage">用量</a></li>
+          <li><a href="/dashboard/billing">账单</a></li>
+          <li><a href="/dashboard/settings">设置</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main id="main" class="layout">
+      <section class="summary">
+        <h1>概览</h1>
+        <p>欢迎回来！这里汇总了过去七天里您所有生产环境项目的关键指标。</p>
+        <div class="cards">
+          <article class="card"><h2>部署次数</h2><p class="big-number">1,284</p><p>较上周增长 4.2%</p></article>
+          <article class="card"><h2>请求总数</h2><p class="big-number">810 万</p><p>较上周下降 1.1%</p></article>
+          <article class="card"><h2>错误率</h2><p class="big-number">0.04%</p><p>与上周持平</p></article>
+        </div>
+      </section>
+
+      <section class="notes" dir="rtl" lang="ar">
+        <h2>ملاحظات الإصدار</h2>
+        <p>أضفنا لوحة استخدام جديدة وحسّنّا زمن استجابة لوحة التحكم بشكل ملحوظ هذا الأسبوع.</p>
+        <ul>
+          <li>تحسينات في الأداء على الصفحات الكبيرة.</li>
+          <li>دعم الوضع الداكن في جميع اللوحات.</li>
+        </ul>
+      </section>
+
+      <section class="i18n-samples">
+        <h2>多语言示例</h2>
+        <p lang="ja">こんにちは。今週のデプロイは順調に完了しました。ご利用ありがとうございます。</p>
+        <p lang="ko">안녕하세요. 이번 주 배포가 모두 정상적으로 완료되었습니다.</p>
+        <p lang="ru">Здравствуйте! На этой неделе все развёртывания прошли успешно.</p>
+        <p lang="el">Γειά σας! Όλες οι αναπτύξεις αυτής της εβδομάδας ολοκληρώθηκαν με επιτυχία.</p>
+        <p lang="hi">नमस्ते! इस सप्ताह सभी परिनियोजन सफलतापूर्वक पूर्ण हुए।</p>
+      </section>
+    </main>
+
+    <footer class="sitefooter">
+      <p>&copy; 2026 Acme, Inc. · <a href="/legal/privacy">隐私政策</a> · <a href="/status">服务状态</a></p>
+    </footer>
+  </body>
+</html>
