@@ -14,9 +14,11 @@ lazy_static! {
         r#"(?i-u)^(true|false|null|none|undefined|error|invalid|missing|wrong|expired|default|example|changeme|replace(?u-i:.)me|your[_-]?(?u-i:.+)|TODO|FIXME|xxx+|placeholder|test(ing)?|sample|dummy|fake|mock|N/?A|TBD)$"#
     ).unwrap();
 
-    // Looks like plain English: all lowercase letters and hyphens, no digits or mixed case
+    // Looks like plain English: lowercase letters, optionally hyphen-joined
+    // (single words included now — a real key almost always has a digit or a
+    // capital). No digits, no mixed case.
     static ref PLAIN_WORDS: Regex = Regex::new(
-        r"^[a-z]+(-[a-z]+)+$"
+        r"^[a-z]+(-[a-z]+)*$"
     ).unwrap();
 
     // Value looks like a URL or file path — not a secret
@@ -144,6 +146,12 @@ impl SecretDetector {
                 if Self::is_code_identifier(value) {
                     return true;
                 }
+                // Keyword-anchored, but still require some randomness: a
+                // low-entropy value (repeated chars, dictionary-ish) sitting
+                // next to `api_key=` is far more likely config noise than a key.
+                if Self::shannon_entropy(value) < 3.0 {
+                    return true;
+                }
                 false
             }
             SecretKind::HighEntropyString => {
@@ -214,11 +222,15 @@ impl SecretDetector {
 
     fn redact(s: &str) -> String {
         let chars: Vec<char> = s.chars().collect();
-        if chars.len() <= 8 {
-            return "*".repeat(chars.len());
+        let len = chars.len();
+        // Reveal scales with length (capped at 4 per side) so short secrets
+        // aren't mostly exposed: a 9-char value shows 1+1, not 4+4 (8 of 9).
+        let reveal = if len <= 8 { 0 } else { (len / 6).min(4) };
+        if reveal == 0 {
+            return "*".repeat(len);
         }
-        let prefix: String = chars[..4].iter().collect();
-        let suffix: String = chars[chars.len() - 4..].iter().collect();
+        let prefix: String = chars[..reveal].iter().collect();
+        let suffix: String = chars[len - reveal..].iter().collect();
         format!("{}...{}", prefix, suffix)
     }
 
@@ -336,8 +348,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case("123456789", "1234...6789")]
-    #[case(&format!("sk_live_{}", "abcdefghij"), "sk_l...ghij")]
+    #[case("123456789", "1...9")] // 9 chars: 1+1, not 4+4
+    #[case("0123456789abcdef", "01...ef")] // 16 chars: 2+2
+    #[case(&format!("sk_live_{}", "abcdefghij"), "sk_...hij")] // 18 chars: 3+3
+    #[case(&format!("AKIA{}", "0123456789ABCDEF0123"), "AKIA...0123")] // 24 chars: 4+4 (capped)
     fn redact_long_strings(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(SecretDetector::redact(input), expected);
     }
@@ -391,10 +405,32 @@ mod tests {
 
     #[test]
     fn fp_generic_real_key_not_filtered() {
-        // Digit-led opaque value defeats every identifier shape
+        // Digit-led opaque value defeats every identifier shape — and clears
+        // the entropy gate, so the generic tier still flags real keys.
         assert!(!SecretDetector::is_false_positive(
             &SecretKind::GenericApiKey,
             &opaque(20)
+        ));
+    }
+
+    #[test]
+    fn fp_generic_low_entropy_filtered() {
+        // Keyword-anchored but near-zero entropy ("Xy9" repeated): mixed-class
+        // so it dodges the plain-word / identifier filters, but the entropy
+        // gate (new) catches it.
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::GenericApiKey,
+            "Xy9Xy9Xy9Xy9Xy9Xy9Xy9"
+        ));
+    }
+
+    #[test]
+    fn fp_generic_single_plain_word_filtered() {
+        // A single lowercase word (no hyphen) is filtered now that PLAIN_WORDS
+        // no longer requires one.
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::GenericApiKey,
+            "supersecretpassword"
         ));
     }
 
