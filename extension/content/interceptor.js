@@ -39,6 +39,9 @@
   // API calls, Authorization headers) is silently dropped. Bounded so a relay that
   // never arrives can't grow memory without limit.
   let relayReady = false;
+  // Nonce the ISOLATED relay minted; learned from its READY handshake and
+  // stamped onto every message so the relay accepts only our posts.
+  let relayNonce = null;
   const pendingPosts = [];
   let pendingBytes = 0;
   const MAX_PENDING_BYTES = 8_000_000;
@@ -62,9 +65,10 @@
       contentType: contentType || '',
     };
     if (relayReady) {
-      window.postMessage(message, window.location.origin);
+      window.postMessage({ ...message, nonce: relayNonce }, window.location.origin);
     } else if (pendingBytes + text.length <= MAX_PENDING_BYTES) {
-      // Relay not listening yet — buffer until it announces readiness.
+      // Relay not listening yet — buffer until it announces readiness (the
+      // nonce is stamped at flush time, once it's known).
       pendingPosts.push(message);
       pendingBytes += text.length;
     }
@@ -472,6 +476,7 @@
     window.postMessage({
       type: '__SECRETS_SPOTTER_NAVIGATION__',
       url: currentUrl,
+      nonce: relayNonce,
     }, window.location.origin);
 
     scanCookies();
@@ -501,8 +506,9 @@
     if (event.origin !== window.location.origin) return;
     if (event.data?.type !== '__SECRETS_SPOTTER_READY__') return;
     relayReady = true;
+    relayNonce = event.data.nonce ?? null;
     for (const message of pendingPosts) {
-      window.postMessage(message, window.location.origin);
+      window.postMessage({ ...message, nonce: relayNonce }, window.location.origin);
     }
     pendingPosts.length = 0;
     pendingBytes = 0;

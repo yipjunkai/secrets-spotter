@@ -132,10 +132,24 @@
     });
   }
 
+  // Per-load nonce shared with the MAIN-world interceptor through the READY
+  // handshake below; every relayed message must carry it. This is a real but
+  // PARTIAL defense: page scripts share the interceptor's MAIN-world realm and
+  // can observe the handshake, so a fully-malicious first-party page can still
+  // learn the nonce and forge. What it does stop is the common case — unrelated
+  // third-party scripts, or accidental collisions, blindly posting
+  // `__SECRETS_SPOTTER_*` window messages. The service worker (which the page
+  // cannot reach) remains the authoritative trust boundary.
+  const RELAY_NONCE =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
   // Listen for intercepted network responses from the MAIN world script
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (event.origin !== window.location.origin) return;
+    if (event.data?.nonce !== RELAY_NONCE) return; // drop un-nonced / forged messages
 
     if (event.data?.type === '__SECRETS_SPOTTER_NAVIGATION__') {
       // SPA navigation — clear DOM findings but keep network findings, then re-scan
@@ -152,9 +166,12 @@
     sendForScan(text, url, `network:${source}`, contentType);
   });
 
-  // Tell the MAIN-world interceptor we're listening so it can flush any traffic
-  // it captured before this (later-injected) relay was ready.
-  window.postMessage({ type: '__SECRETS_SPOTTER_READY__' }, window.location.origin);
+  // Tell the MAIN-world interceptor we're listening — and hand it the nonce — so
+  // it can flush any traffic it captured before this (later-injected) relay was ready.
+  window.postMessage(
+    { type: '__SECRETS_SPOTTER_READY__', nonce: RELAY_NONCE },
+    window.location.origin,
+  );
 
   if (document.readyState === 'complete') {
     scanPage();

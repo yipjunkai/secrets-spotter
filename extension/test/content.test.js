@@ -3,7 +3,7 @@
 // pagehide / context invalidation, and debounces MutationObserver activity.
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { createChrome } from './helpers/chrome.js';
-import { createEnv, loadContentScript } from './helpers/loadScript.js';
+import { createEnv, loadContentScript, FAKE_NONCE } from './helpers/loadScript.js';
 
 const ORIGIN = 'https://app.example.test';
 
@@ -12,10 +12,11 @@ const flush = async (n = 4) => {
   for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0));
 };
 
-// Build an incoming window message event with the source/origin the script
-// requires (`event.source === window`, `event.origin === location.origin`).
+// Build an incoming window message event with the source/origin/nonce the
+// script requires (`event.source === window`, matching origin, and the relay
+// nonce content.js minted — FAKE_NONCE in tests).
 function incoming(env, data) {
-  return { source: env.window, origin: ORIGIN, data };
+  return { source: env.window, origin: ORIGIN, data: { ...data, nonce: FAKE_NONCE } };
 }
 
 const sentMessages = (chrome) =>
@@ -85,6 +86,31 @@ describe('content.js — relay', () => {
       source: {},
       origin: ORIGIN,
       data: { type: '__SECRETS_SPOTTER_INTERCEPT__', text: 'x'.repeat(20), source: 'fetch' },
+    });
+    await flush();
+
+    expect(sentMessages(chrome)).toHaveLength(0);
+  });
+
+  it('ignores same-origin messages without the relay nonce (forgery)', async () => {
+    const { env, chrome } = await setup();
+
+    // Correct source + origin, but no nonce / a guessed one — a page script
+    // forging the relay protocol. Both are dropped.
+    env.emit('message', {
+      source: env.window,
+      origin: ORIGIN,
+      data: { type: '__SECRETS_SPOTTER_INTERCEPT__', text: 'forged-payload-aaaa', source: 'fetch' },
+    });
+    env.emit('message', {
+      source: env.window,
+      origin: ORIGIN,
+      data: {
+        type: '__SECRETS_SPOTTER_INTERCEPT__',
+        text: 'forged-payload-bbbb',
+        source: 'fetch',
+        nonce: 'wrong-nonce',
+      },
     });
     await flush();
 

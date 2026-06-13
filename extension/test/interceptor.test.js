@@ -24,11 +24,12 @@ const intercepts = (env) =>
     .map(([m]) => m)
     .filter((m) => m?.type === '__SECRETS_SPOTTER_INTERCEPT__');
 
-const ready = (env) =>
+const RELAY_NONCE = 'test-relay-nonce-xyz';
+const ready = (env, nonce = RELAY_NONCE) =>
   env.emit('message', {
     source: env.window,
     origin: ORIGIN,
-    data: { type: '__SECRETS_SPOTTER_READY__' },
+    data: { type: '__SECRETS_SPOTTER_READY__', nonce },
   });
 
 afterEach(() => vi.useRealTimers());
@@ -249,6 +250,26 @@ describe('interceptor.js — response streaming cap', () => {
     expect(relayed.length).toBe(2_000_000); // capped at MAX_SIZE
     expect(stats.bytesPulled).toBeLessThan(2_200_000); // didn't drain the full 3MB
     expect(stats.cancelled).toBe(true); // reader was cancelled
+  });
+});
+
+describe('interceptor.js — relay nonce', () => {
+  it('stamps the nonce learned from READY onto relayed messages', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env); // hands over RELAY_NONCE
+
+    env.fetchMock.mockResolvedValueOnce(
+      makeResponse('nonce-stamped-body', {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    await env.window.fetch(`${ORIGIN}/api/data`);
+    await flush();
+
+    const msg = intercepts(env).find((m) => m.text === 'nonce-stamped-body');
+    expect(msg).toBeDefined();
+    expect(msg.nonce).toBe(RELAY_NONCE);
   });
 });
 
