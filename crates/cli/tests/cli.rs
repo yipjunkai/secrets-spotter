@@ -133,7 +133,11 @@ fn reports_the_finding_line_number() {
     let dir = tempdir().unwrap();
     let file = dir.path().join("creds.txt");
     // Secret on the 3rd line.
-    fs::write(&file, format!("first line\nsecond line\nkey = {}\n", aws_key())).unwrap();
+    fs::write(
+        &file,
+        format!("first line\nsecond line\nkey = {}\n", aws_key()),
+    )
+    .unwrap();
     bin()
         .arg(&file)
         .assert()
