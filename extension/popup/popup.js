@@ -132,9 +132,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       grouped[f.severity] = (grouped[f.severity] || 0) + 1;
     }
 
+    // Headline mirrors the toolbar badge, which counts only Critical/High.
+    const significant = (grouped.Critical || 0) + (grouped.High || 0);
     summaryEl.textContent = '';
     const strong = document.createElement('strong');
-    strong.textContent = `${findings.length} secret(s) detected`;
+    strong.textContent = significant > 0
+      ? `${findings.length} secret(s) detected — ${significant} high-severity`
+      : `${findings.length} secret(s) detected`;
     summaryEl.appendChild(strong);
     summaryEl.appendChild(document.createElement('br'));
     const entries = Object.entries(grouped);

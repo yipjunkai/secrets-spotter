@@ -143,3 +143,41 @@ describe('service worker — finding lifecycle', () => {
     expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
   });
 });
+
+const drain = async (n = 40) => {
+  for (let i = 0; i < n; i += 1) await new Promise((r) => setTimeout(r, 0));
+};
+
+describe('service worker — log + response hygiene', () => {
+  it('serializes concurrent error-log writes without losing entries', async () => {
+    const { sendMessage } = await loadServiceWorker();
+    // Fire many LOG_ERROR messages concurrently (no await between) — the old
+    // get/modify/set would clobber all but the last.
+    for (let i = 0; i < 8; i += 1) {
+      sendMessage({ type: 'LOG_ERROR', src: 'content', msg: `err-${i}`, url: 'https://x.test/' });
+    }
+    await drain();
+    const res = await sendMessage({ type: 'GET_ERROR_LOG' }).done;
+    expect(res.errorLog).toHaveLength(8);
+  });
+
+  it('strips query strings and fragments from logged URLs', async () => {
+    const { sendMessage } = await loadServiceWorker();
+    sendMessage({
+      type: 'LOG_ERROR',
+      src: 'content',
+      msg: 'boom',
+      url: 'https://x.test/path/a?token=shouldnotpersist&u=1#frag',
+    });
+    await drain(20);
+    const res = await sendMessage({ type: 'GET_ERROR_LOG' }).done;
+    expect(res.errorLog[0].url).toBe('https://x.test/path/a');
+  });
+
+  it('does not echo findings in the SCAN_TEXT response', async () => {
+    const { sendMessage, wasm } = await loadServiceWorker();
+    wasm.scan_text.mockReturnValue([finding('High', 'x')]);
+    const res = await sendMessage(scanMsg(), { tab: { id: 1 } }).done;
+    expect(res).toEqual({ ok: true });
+  });
+});
