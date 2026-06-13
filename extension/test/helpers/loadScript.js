@@ -19,7 +19,10 @@ const EXT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 // timers (advanceTimersByTimeAsync) — which content.js's hash-dedup needs. This
 // folds the input into a 32-byte digest: distinct content -> distinct output
 // (so dedup still distinguishes texts), resolved on a plain microtask.
+export const FAKE_NONCE = '00000000-0000-4000-8000-000000000000';
 const fakeCrypto = {
+  // Fixed so tests know the relay nonce content.js mints at load.
+  randomUUID: () => FAKE_NONCE,
   subtle: {
     digest: async (_algo, data) => {
       const bytes = new Uint8Array(data);
