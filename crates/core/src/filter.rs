@@ -6,22 +6,22 @@ lazy_static! {
     // (`.map`) are deliberately absent: they embed original source, inline
     // `sourcesContent`, and comments — a prime place for leaked keys/endpoints.
     static ref SKIP_EXTENSIONS: Regex = Regex::new(
-        r"(?i)\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|tiff|avif|woff2?|ttf|eot|otf|mp3|mp4|webm|ogg|wav|avi|mov|pdf|zip|tar|gz|br|wasm)(\?|$)"
+        r"(?i-u)\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|tiff|avif|woff2?|ttf|eot|otf|mp3|mp4|webm|ogg|wav|avi|mov|pdf|zip|tar|gz|br|wasm)(\?|$)"
     ).unwrap();
 
     static ref SKIP_CONTENT_TYPES: Regex = Regex::new(
-        r"(?i)^(image|audio|video|font)/"
+        r"(?i-u)^(image|audio|video|font)/"
     ).unwrap();
 
     // Well-known third-party library/framework path segments. A bare `cdn` token
     // is intentionally absent — it over-matched first-party routes like
     // `/cdn/config.json`; real CDN *hosts* are handled by SKIP_CDN_HOSTS below.
     static ref SKIP_PATHS: Regex = Regex::new(
-        r"(?i)/(jquery|lodash|react|angular|vue|bootstrap|tailwind|fontawesome|googleapis|polyfill|analytics|gtag|gtm)\b"
+        r"(?i-u)/(jquery|lodash|react|angular|vue|bootstrap|tailwind|fontawesome|googleapis|polyfill|analytics|gtag|gtm)\b"
     ).unwrap();
 
     static ref SKIP_CDN_HOSTS: Regex = Regex::new(
-        r"(?i)^https?://(cdnjs\.cloudflare\.com|unpkg\.com|cdn\.jsdelivr\.net|ajax\.googleapis\.com|cdn\.bootcdn\.net|code\.jquery\.com|stackpath\.bootstrapcdn\.com|maxcdn\.bootstrapcdn\.com|fonts\.googleapis\.com|use\.fontawesome\.com|cdn\.tailwindcss\.com)"
+        r"(?i-u)^https?://(cdnjs\.cloudflare\.com|unpkg\.com|cdn\.jsdelivr\.net|ajax\.googleapis\.com|cdn\.bootcdn\.net|code\.jquery\.com|stackpath\.bootstrapcdn\.com|maxcdn\.bootstrapcdn\.com|fonts\.googleapis\.com|use\.fontawesome\.com|cdn\.tailwindcss\.com)"
     ).unwrap();
 }
 

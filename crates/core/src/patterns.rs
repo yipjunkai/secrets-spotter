@@ -70,7 +70,7 @@ lazy_static! {
         // SHA-1; these tokens were never bulk-revoked, so they may still be live.
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?-u:\b)(?:github|gh)_?(?:token|pat|key|secret|api_?key|oauth|access_?token)\s*[:=]\s*['\x22]?([0-9a-f]{40})['\x22]?"#
+                r#"(?i-u)(?-u:\b)(?:github|gh)_?(?:token|pat|key|secret|api_?key|oauth|access_?token)\s*[:=]\s*['\x22]?([0-9a-f]{40})['\x22]?"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::GitHubToken,
@@ -106,7 +106,7 @@ lazy_static! {
         // Password in URL
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:https?|ftp|ssh|mysql|postgresql|postgres|redis|mongodb|amqp|smtp|mariadb|cockroachdb)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{8,})@(?:\[[0-9A-Fa-f:]+\]|[A-Za-z0-9._-]+)(?::[0-9]+)?"#
+                r#"(?i-u)(?:https?|ftp|ssh|mysql|postgresql|postgres|redis|mongodb|amqp|smtp|mariadb|cockroachdb)://[A-Za-z0-9._~-]+:([A-Za-z0-9._~!%*+-]{8,})@(?:\[[0-9A-Fa-f:]+\]|[A-Za-z0-9._-]+)(?::[0-9]+)?"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::PasswordInUrl,
@@ -217,7 +217,7 @@ lazy_static! {
         // unrelated `key-<hash>` strings (cache keys, asset digests, etc.).
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)mailgun[a-z0-9_\-]*\s*[:=]\s*['\x22]?(key-[0-9a-zA-Z]{32})['\x22]?"#
+                r#"(?i-u)mailgun[a-z0-9_\-]*\s*[:=]\s*['\x22]?(key-[0-9a-zA-Z]{32})['\x22]?"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::MailgunApiKey,
@@ -359,7 +359,7 @@ lazy_static! {
         // "cloudflare" keyword near a 37-40 char value.
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)cloudflare[a-z0-9_\-]*\s*[:=]\s*['\x22]?([A-Za-z0-9_\-]{37,40})['\x22]?"#
+                r#"(?i-u)cloudflare[a-z0-9_\-]*\s*[:=]\s*['\x22]?([A-Za-z0-9_\-]{37,40})['\x22]?"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::CloudflareApiToken,
@@ -421,7 +421,7 @@ lazy_static! {
         // prefix; keyword-gated on "vault" since a bare `s.`+24 is very noisy.
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)vault[a-z0-9_\-]*\s*[:=]\s*['\x22]?(s\.[A-Za-z0-9]{24})['\x22]?"#
+                r#"(?i-u)vault[a-z0-9_\-]*\s*[:=]\s*['\x22]?(s\.[A-Za-z0-9]{24})['\x22]?"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::HashicorpVaultToken,
@@ -449,7 +449,7 @@ lazy_static! {
         // detected via a "vercel" keyword (still accepted by the API).
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)vercel[a-z0-9_\-]*\s*[:=]\s*['\x22]?([A-Za-z0-9]{24})['\x22]?"#
+                r#"(?i-u)vercel[a-z0-9_\-]*\s*[:=]\s*['\x22]?([A-Za-z0-9]{24})['\x22]?"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::VercelToken,
@@ -495,7 +495,7 @@ lazy_static! {
         // AWS Secret Access Key
         SecretPattern {
             regex: Regex::new(
-                r"(?i)(?:aws_secret_access_key|aws_secret|secret_key)\s*[:=]\s*['\x22]?([A-Za-z0-9/+=]{40})['\x22]?"
+                r"(?i-u)(?:aws_secret_access_key|aws_secret|secret_key)\s*[:=]\s*['\x22]?([A-Za-z0-9/+=]{40})['\x22]?"
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::AwsSecretKey,
@@ -505,7 +505,7 @@ lazy_static! {
         // Heroku API Key
         SecretPattern {
             regex: Regex::new(
-                r"(?i)(?:heroku[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})['\x22]?"
+                r"(?i-u)(?:heroku[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})['\x22]?"
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::HerokuApiKey,
@@ -515,7 +515,7 @@ lazy_static! {
         // Azure Subscription Key
         SecretPattern {
             regex: Regex::new(
-                r"(?i)(?:subscription[_\-]?key|ocp-apim-subscription-key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
+                r"(?i-u)(?:subscription[_\-]?key|ocp-apim-subscription-key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::AzureSubscriptionKey,
@@ -525,7 +525,7 @@ lazy_static! {
         // Datadog API Key
         SecretPattern {
             regex: Regex::new(
-                r"(?i)(?:dd[_\-]?api[_\-]?key|datadog[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
+                r"(?i-u)(?:dd[_\-]?api[_\-]?key|datadog[_\-]?api[_\-]?key)\s*[:=]\s*['\x22]?([0-9a-f]{32})['\x22]?"
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::DatadogApiKey,
@@ -539,7 +539,7 @@ lazy_static! {
         // Generic API Key
         SecretPattern {
             regex: Regex::new(
-                r"(?i)(?:api[_\-]?key|apikey|api[_\-]?secret)\s*[:=]\s*['\x22]?([A-Za-z0-9_\-]{20,64})['\x22]?"
+                r"(?i-u)(?:api[_\-]?key|apikey|api[_\-]?secret)\s*[:=]\s*['\x22]?([A-Za-z0-9_\-]{20,64})['\x22]?"
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::GenericApiKey,
@@ -549,7 +549,7 @@ lazy_static! {
         // Bearer Token in Authorization header
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:authorization|auth)\s*[:=]\s*['\x22]?Bearer\s+([A-Za-z0-9_\-\.]{20,512})['\x22]?"#
+                r#"(?i-u)(?:authorization|auth)\s*[:=]\s*['\x22]?Bearer\s+([A-Za-z0-9_\-\.]{20,512})['\x22]?"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::BearerToken,
@@ -559,7 +559,7 @@ lazy_static! {
         // Generic Token assignment
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:api[_\-]?token|auth[_\-]?token|access[_\-]?token|client[_\-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9_\-\.]{20,512})['\x22]"#
+                r#"(?i-u)(?:api[_\-]?token|auth[_\-]?token|access[_\-]?token|client[_\-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9_\-\.]{20,512})['\x22]"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::GenericToken,
@@ -573,7 +573,7 @@ lazy_static! {
         // High-entropy catch-all: key/token/secret assignment with a long alphanumeric value
         SecretPattern {
             regex: Regex::new(
-                r#"(?i)(?:key|token|secret|credential|auth|password|apikey|api_key|api[_-]?secret|private[_-]?key|access[_-]?key|client[_-]?secret|signing[_-]?key|encryption[_-]?key|session[_-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9+/=_\-]{32,256})['\x22]"#
+                r#"(?i-u)(?:key|token|secret|credential|auth|password|apikey|api_key|api[_-]?secret|private[_-]?key|access[_-]?key|client[_-]?secret|signing[_-]?key|encryption[_-]?key|session[_-]?secret)\s*[:=]\s*['\x22]([A-Za-z0-9+/=_\-]{32,256})['\x22]"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::HighEntropyString,
@@ -584,8 +584,12 @@ lazy_static! {
         // Must be preceded by a separator (not a minified object key like {TOKEN:"..."})
         // Value must contain some entropy (mixed chars, not plain-english-words)
         SecretPattern {
+            // The negated value class runs in `(?u-i:)` scope (Unicode on,
+            // case-folding off): under `-u` it could match invalid UTF-8, which
+            // the regex crate rejects on &str patterns. ASCII whitespace is
+            // spelled out — `\s` here would need the unicode-perl feature.
             regex: Regex::new(
-                r#"(?i)(?:^|[\s,;{(]|(?:export|const|let|var|def|set)\s+)(?:password|passwd|pwd|secret_key|api_secret|private_key)\s*[:=]\s*['\x22]([^'\x22\s]{12,64})['\x22]"#
+                r#"(?i-u)(?:^|[\s,;{(]|(?:export|const|let|var|def|set)\s+)(?:password|passwd|pwd|secret_key|api_secret|private_key)\s*[:=]\s*['\x22]((?u-i:[^'\x22 \t\r\n\x0B\x0C]){12,64})['\x22]"#
             ).unwrap(),
             prefixes: &[],
             kind: SecretKind::GenericSecret,

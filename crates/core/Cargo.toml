@@ -16,9 +16,13 @@ crate-type = ["rlib"]
 fixtures = []
 
 [dependencies]
-regex = "1"
+# default-features off drops the Unicode tables (~300 KB of the shipped wasm).
+# Every pattern is ASCII-scoped — (?i-u) case folding, (?-u:\b) boundaries —
+# so the tables were dead weight. `just scan-self` is the guard: cargo test
+# re-enables default features via dev-dependency feature unification and
+# CANNOT catch a pattern that needs them; the CLI/wasm builds can.
+regex = { version = "1", default-features = false, features = ["std", "perf"] }
 lazy_static = "1.4"
-memchr = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
