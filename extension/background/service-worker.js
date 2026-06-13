@@ -12,23 +12,42 @@ let wasmInitPromise = null;
 
 const MAX_LOG_ENTRIES = 100;
 
-async function appendToLog(entry) {
-  try {
-    const { errorLog = [] } = await chrome.storage.local.get('errorLog');
-    const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    const filtered = errorLog.filter(e => e.ts > cutoff);
-    filtered.push(entry);
-    if (filtered.length > MAX_LOG_ENTRIES) {
-      filtered.splice(0, filtered.length - MAX_LOG_ENTRIES);
+// Serialize error-log writes through one promise chain. Without it, concurrent
+// appendToLog() calls each do get -> modify -> set and clobber one another
+// (a read-modify-write race in the worker).
+let logWriteChain = Promise.resolve();
+function appendToLog(entry) {
+  logWriteChain = logWriteChain.then(async () => {
+    try {
+      const { errorLog = [] } = await chrome.storage.local.get('errorLog');
+      const cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+      const filtered = errorLog.filter(e => e.ts > cutoff);
+      filtered.push(entry);
+      if (filtered.length > MAX_LOG_ENTRIES) {
+        filtered.splice(0, filtered.length - MAX_LOG_ENTRIES);
+      }
+      await chrome.storage.local.set({ errorLog: filtered });
+    } catch (e) {
+      console.warn('Secrets Spotter: failed to write error log:', e.message);
     }
-    await chrome.storage.local.set({ errorLog: filtered });
-  } catch (e) {
-    console.warn('Secrets Spotter: failed to write error log:', e.message);
+  });
+  return logWriteChain;
+}
+
+// Strip query strings and fragments from logged URLs — they can carry tokens or
+// PII that shouldn't be persisted in the (user-visible) debug log.
+function stripUrl(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return null;
   }
 }
 
 function logEntry(src, msg, stack, url) {
-  return { ts: Date.now(), src, msg, stack: stack || null, url: url || null };
+  return { ts: Date.now(), src, msg, stack: stack || null, url: stripUrl(url) };
 }
 
 self.addEventListener('error', (event) => {
@@ -112,7 +131,7 @@ function tabKey(tabId) {
 async function getTabData(tabId) {
   const key = tabKey(tabId);
   const result = await chrome.storage.session.get(key);
-  return result[key] || { findings: [], scannedUrls: [], url: '', scanned: 0, skipped: 0, sources: {}, documentId: null };
+  return result[key] || { findings: [], url: '', scanned: 0, skipped: 0, sources: {}, documentId: null };
 }
 
 async function setTabData(tabId, data) {
@@ -156,18 +175,6 @@ function normalizeSource(source) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'CLEAR_TAB') {
-    const tabId = sender.tab?.id;
-    if (tabId != null) {
-      removeTabData(tabId).then(() => {
-        updateBadge(tabId, 0);
-        sendResponse({});
-      });
-    } else {
-      sendResponse({});
-    }
-    return true;
-  }
   if (message.type === 'CLEAR_DOM_FINDINGS') {
     const tabId = sender.tab?.id;
     if (tabId != null) {
@@ -238,10 +245,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Deduplicate via Rust
           tabData.findings = merge_findings(tabData.findings, newFindings);
 
-          if (message.url && !tabData.scannedUrls.includes(message.url)) {
-            tabData.scannedUrls.push(message.url);
-          }
-
           tabData.scanned = (tabData.scanned || 0) + 1;
           tabData.lastScanTs = Date.now();
           tabData.sources = tabData.sources || {};
@@ -252,7 +255,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       }
 
-      sendResponse({ findings: newFindings });
+      // The content script discards this response (it only checks lastError),
+      // so don't echo the full findings array back across the message boundary.
+      sendResponse({ ok: true });
     }).catch((err) => {
       console.warn('Secrets Spotter: scan failed:', err.message);
       appendToLog(logEntry('service-worker', `scan failed: ${err.message}`, err.stack));
@@ -315,7 +320,7 @@ chrome.webNavigation?.onCommitted?.addListener((details) => {
   // arrive late from the previous document are dropped in the SCAN_TEXT handler.
   withTabLock(tabId, () =>
     setTabData(tabId, {
-      findings: [], scannedUrls: [], url: '', scanned: 0, skipped: 0,
+      findings: [], url: '', scanned: 0, skipped: 0,
       sources: {}, documentId: details.documentId,
     })
   );
