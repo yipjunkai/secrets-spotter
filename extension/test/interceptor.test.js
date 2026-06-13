@@ -100,6 +100,113 @@ describe('interceptor.js — navigation (nav-race)', () => {
   });
 });
 
+describe('interceptor.js — capture filter parity with core', () => {
+  it('relays source-map response bodies (regression: .map was skipped)', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    env.fetchMock.mockResolvedValueOnce(
+      makeResponse('sourcemap-sourcesContent-payload', {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    await env.window.fetch(`${ORIGIN}/static/bundle.js.map`);
+    await flush();
+
+    const texts = intercepts(env).map((m) => m.text);
+    expect(texts).toContain('sourcemap-sourcesContent-payload');
+  });
+
+  it('relays first-party /cdn path responses (regression: bare cdn was skipped)', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    env.fetchMock.mockResolvedValueOnce(
+      makeResponse('first-party-cdn-config-payload', {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    await env.window.fetch(`${ORIGIN}/cdn/user-config.json`);
+    await flush();
+
+    const texts = intercepts(env).map((m) => m.text);
+    expect(texts).toContain('first-party-cdn-config-payload');
+  });
+
+  it('still skips known CDN hosts', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    env.fetchMock.mockResolvedValueOnce(makeResponse('cdn-library-source'));
+    await env.window.fetch('https://cdn.jsdelivr.net/npm/chart.js');
+    await flush();
+
+    expect(intercepts(env)).toHaveLength(0);
+  });
+});
+
+describe('interceptor.js — Request-object inputs', () => {
+  it('captures headers and body of a Request-object fetch input', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    const request = new Request(`${ORIGIN}/api/send`, {
+      method: 'POST',
+      headers: { 'x-api-key': 'header-credential-value-123' },
+      body: 'request-object-body-payload',
+      duplex: 'half', // Node's fetch requires it for bodied requests
+    });
+    await env.window.fetch(request);
+    await flush();
+
+    const texts = intercepts(env).map((m) => m.text);
+    expect(texts.some((t) => t.includes('x-api-key: header-credential-value-123'))).toBe(true);
+    expect(texts).toContain('request-object-body-payload');
+  });
+
+  it('the original Request body still reaches fetch (clone, not consume)', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    const request = new Request(`${ORIGIN}/api/send`, {
+      method: 'POST',
+      body: 'must-survive-interception',
+      duplex: 'half',
+    });
+    await env.window.fetch(request);
+    await flush();
+
+    const passed = env.fetchMock.mock.calls[0][0];
+    expect(passed.bodyUsed).toBe(false);
+    await expect(passed.text()).resolves.toBe('must-survive-interception');
+  });
+});
+
+describe('interceptor.js — request-phase skip filter', () => {
+  it('does not relay request headers/body for skipped URLs (fetch)', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    env.fetchMock.mockResolvedValueOnce(
+      makeResponse('png-bytes', { headers: { 'content-type': 'image/png' } }),
+    );
+    await env.window.fetch(`${ORIGIN}/upload/logo.png`, {
+      method: 'POST',
+      headers: { authorization: 'Bearer header-on-skipped-url' },
+      body: 'body-on-skipped-url-12345',
+    });
+    await flush();
+
+    expect(intercepts(env)).toHaveLength(0);
+  });
+});
+
 describe('interceptor.js — websocket batching', () => {
   it('batches WebSocket messages and relays them after the flush interval', async () => {
     vi.useFakeTimers();

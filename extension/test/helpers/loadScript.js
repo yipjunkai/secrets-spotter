@@ -183,6 +183,9 @@ export function loadContentScript(relPath, env, { chrome } = {}) {
     Node: env.window.Node,
     TextEncoder: globalThis.TextEncoder,
     Headers: env.window.Headers ?? globalThis.Headers,
+    // Node's Request (undici) — tests construct Request inputs with the same
+    // constructor so the interceptor's instanceof check matches.
+    Request: globalThis.Request ?? env.window.Request,
     Event: env.window.Event ?? globalThis.Event,
     AbortController: globalThis.AbortController,
     crypto: globalThis.crypto,
