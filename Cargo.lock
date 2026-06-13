@@ -775,7 +775,6 @@ name = "secrets-spotter-core"
 version = "1.1.0"
 dependencies = [
  "criterion",
- "lazy_static",
  "regex",
  "rstest",
  "serde",
