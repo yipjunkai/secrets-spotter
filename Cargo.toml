@@ -1,5 +1,8 @@
 [workspace]
 members = ["crates/core", "crates/cli", "crates/wasm"]
+# fuzz/ is its own standalone workspace (nightly + libfuzzer deps) — exclude it
+# so the main `cargo check`/`test`/`build` never resolves or compiles it.
+exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.package]

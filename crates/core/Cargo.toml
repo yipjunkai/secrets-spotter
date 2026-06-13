@@ -9,6 +9,12 @@ description = "Core secret detection library for secrets-spotter"
 [lib]
 crate-type = ["rlib"]
 
+[features]
+# Exposes the deterministic secret-shape assembly helpers (test_fixtures) to
+# out-of-crate consumers — currently the fuzz workspace's seed generation.
+# Off by default, so cli/wasm and the shipped artifacts never compile it.
+fixtures = []
+
 [dependencies]
 regex = "1"
 lazy_static = "1.4"

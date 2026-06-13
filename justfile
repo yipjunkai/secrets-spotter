@@ -38,6 +38,17 @@ bench:
 scan-self:
     cargo run -q -p secrets-spotter -- .
 
+# Fuzz one target for `secs` seconds (default 60). Uses the standalone fuzz/
+# workspace and its pinned nightly. Targets: scan_text, merge_findings,
+# parse_cookies, format_attributes, should_scan.
+#
+# First corpus dir (corpus/<target>, gitignored) is the writable working set;
+# seeds/<target> is read-only baseline input. Order matters — never pass seeds
+# first, or libFuzzer writes evolved inputs back into the committed seed dir.
+fuzz target='scan_text' secs='60':
+    cd fuzz && mkdir -p corpus/{{target}} && \
+        cargo fuzz run {{target}} corpus/{{target}} seeds/{{target}} -- -max_total_time={{secs}}
+
 # Check formatting and lints
 lint:
     cargo fmt --all -- --check

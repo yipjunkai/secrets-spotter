@@ -1,0 +1,68 @@
+# libFuzzer dictionary for the scan_text target. Entries are the literal
+# detector prefixes (from crates/core/src/patterns.rs `prefixes`) plus a few
+# structural tokens, so the fuzzer reaches the match paths from a cold start
+# without us committing any full secret-shaped literal. A bare prefix is not a
+# secret shape, so this file stays clean under `just scan-self` / TruffleHog.
+#
+# Keep in rough sync with patterns.rs when adding detectors — drift only costs
+# cold-start coverage, never correctness.
+
+# AWS
+"AKIA"
+"ASIA"
+# GitHub
+"ghp_"
+"gho_"
+"ghu_"
+"ghs_"
+"ghr_"
+"github_pat_"
+# GitLab
+"glpat-"
+"glsa_"
+# Google / GCP / Firebase
+"AIza"
+"ya29."
+# Slack
+"xox"
+"xapp-"
+# Stripe
+"sk_live_"
+"sk_test_"
+"pk_live_"
+"rk_live_"
+"whsec_"
+# OpenAI / Anthropic
+"sk-"
+"sk-proj-"
+"sk-ant-api03-"
+"sk-ant-oat01-"
+# SendGrid / Twilio / Mailgun
+"SG."
+"SK"
+# Package registries
+"npm_"
+"pypi-"
+"hf_"
+# Linear / PostHog / Databricks / DigitalOcean / Vercel
+"lin_api_"
+"phc_"
+"phx_"
+"dapi"
+"dop_v1_"
+"vca_"
+# HashiCorp Vault
+"hvs."
+# JWT / PEM
+"eyJ"
+"-----BEGIN"
+"PuTTY-User-Key-File-"
+
+# Structural tokens — assignment / header / JSON syntax around secrets
+"=\""
+": \""
+"Bearer "
+"Authorization"
+"api_key"
+"token"
+"Set-Cookie: "
