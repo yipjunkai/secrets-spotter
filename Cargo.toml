@@ -18,6 +18,15 @@ license = "MIT OR Apache-2.0"
 opt-level = "s"
 lto = true
 
+# The CLI is a throughput tool, but `release` is size-optimized for the WASM
+# build it shares (`opt-level = "s"`). wasm-pack can't take a custom profile, so
+# the CLI gets its own speed profile instead; `just build-cli` and release.yml
+# build with `--profile release-cli` (artifacts land in target/release-cli/).
+[profile.release-cli]
+inherits = "release"
+opt-level = 3
+codegen-units = 1
+
 # Benchmarks measure throughput, so they must reflect speed-optimized code —
 # not the size-optimized (`opt-level = "s"`) release profile the WASM build
 # ships. `cargo bench` inherits from `release`, so override it explicitly here.

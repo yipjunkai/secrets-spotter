@@ -85,13 +85,13 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: Build CLI
-        run: cargo build --release --locked -p secrets-spotter --target ${{ matrix.target }}
+        run: cargo build --profile release-cli --locked -p secrets-spotter --target ${{ matrix.target }}
       - name: Package CLI
         shell: bash
         run: |
           ARCHIVE="secrets-spotter-${{ github.ref_name }}-${{ matrix.target }}"
           mkdir -p "$ARCHIVE"
-          cp "target/${{ matrix.target }}/release/${{ matrix.artifact }}" "$ARCHIVE/"
+          cp "target/${{ matrix.target }}/release-cli/${{ matrix.artifact }}" "$ARCHIVE/"
           cp LICENSE-APACHE LICENSE-MIT "$ARCHIVE/"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             7z a "$ARCHIVE.zip" "$ARCHIVE"
