@@ -16,11 +16,17 @@
   // (intercepted by the patched network APIs above).  Set to `true` to enable.
   const SCAN_EXTERNAL_RESOURCES = false;
 
-  const SKIP_EXTENSIONS = /\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|tiff|avif|woff2?|ttf|eot|otf|mp3|mp4|webm|ogg|wav|avi|mov|pdf|zip|tar|gz|br|map|wasm)(\?|$)/i;
+  // Binary / non-text assets that never carry scannable secrets. Source maps
+  // (`.map`) are deliberately absent — they embed original source and inline
+  // `sourcesContent`, a prime leak vector. Mirrors crates/core/src/filter.rs.
+  const SKIP_EXTENSIONS = /\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|tiff|avif|woff2?|ttf|eot|otf|mp3|mp4|webm|ogg|wav|avi|mov|pdf|zip|tar|gz|br|wasm)(\?|$)/i;
 
   const SKIP_CONTENT_TYPES = /^(image|audio|video|font)\//i;
 
-  const SKIP_PATHS = /\/(jquery|lodash|react|angular|vue|bootstrap|tailwind|fontawesome|googleapis|cdn|polyfill|analytics|gtag|gtm)\b/i;
+  // Well-known third-party library path segments. A bare `cdn` token is
+  // intentionally absent — it over-matched first-party routes like
+  // `/cdn/config.json`; real CDN hosts are in SKIP_CDN_HOSTS. Mirrors filter.rs.
+  const SKIP_PATHS = /\/(jquery|lodash|react|angular|vue|bootstrap|tailwind|fontawesome|googleapis|polyfill|analytics|gtag|gtm)\b/i;
 
   const SKIP_CDN_HOSTS = /^https?:\/\/(cdnjs\.cloudflare\.com|unpkg\.com|cdn\.jsdelivr\.net|ajax\.googleapis\.com|cdn\.bootcdn\.net|code\.jquery\.com|stackpath\.bootstrapcdn\.com|maxcdn\.bootstrapcdn\.com|fonts\.googleapis\.com|use\.fontawesome\.com|cdn\.tailwindcss\.com)/i;
 
@@ -67,31 +73,48 @@
   // Patch fetch() — request + response headers & body
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
-    // Scan outgoing request headers and body
+    // Scan outgoing request headers and body — both `fetch(url, opts)` and
+    // `fetch(new Request(...))` forms. Gated on the same URL skip-filter as
+    // responses, so request traffic to skipped hosts/paths isn't relayed.
     try {
-      const url = (typeof args[0] === 'string' ? args[0] : args[0]?.url) || '';
+      const input = args[0];
+      const isRequest = typeof Request !== 'undefined' && input instanceof Request;
+      const url = (typeof input === 'string' ? input : input?.url) || '';
       const opts = args[1] || {};
 
-      // Request headers
-      if (opts.headers) {
+      if (shouldScan(url, '')) {
         const headerLines = [];
-        if (opts.headers instanceof Headers) {
-          for (const [name, value] of opts.headers.entries()) {
-            headerLines.push(`${name}: ${value}`);
+        const collectHeaders = (headers) => {
+          if (!headers) return;
+          if (typeof headers.entries === 'function') {
+            for (const [name, value] of headers.entries()) {
+              headerLines.push(`${name}: ${value}`);
+            }
+          } else if (typeof headers === 'object') {
+            for (const [name, value] of Object.entries(headers)) {
+              headerLines.push(`${name}: ${value}`);
+            }
           }
-        } else if (typeof opts.headers === 'object') {
-          for (const [name, value] of Object.entries(opts.headers)) {
-            headerLines.push(`${name}: ${value}`);
-          }
-        }
+        };
+        // A Request input carries its own headers; init headers override them
+        // when both are present, but scan both — either may hold a credential.
+        if (isRequest) collectHeaders(input.headers);
+        collectHeaders(opts.headers);
         if (headerLines.length > 0) {
           postIntercepted(url, headerLines.join('\n'), 'request:fetch');
         }
-      }
 
-      // Request body
-      if (typeof opts.body === 'string' && opts.body.length >= 10) {
-        postIntercepted(url, opts.body, 'request:fetch');
+        if (typeof opts.body === 'string' && opts.body.length >= 10) {
+          postIntercepted(url, opts.body, 'request:fetch');
+        } else if (isRequest && input.body && !input.bodyUsed) {
+          // Request bodies are one-shot streams — read a clone (taken before
+          // originalFetch consumes the original) and never delay the request.
+          input.clone().text().then((body) => {
+            if (body && body.length >= 10) {
+              postIntercepted(url, body, 'request:fetch');
+            }
+          }).catch(() => {});
+        }
       }
     } catch {}
 
@@ -134,10 +157,14 @@
   };
 
   XMLHttpRequest.prototype.send = function (...args) {
-    // Scan outgoing request body
+    // Scan outgoing request body (skip-filtered like every other capture)
     try {
       const body = args[0];
-      if (typeof body === 'string' && body.length >= 10) {
+      if (
+        typeof body === 'string' &&
+        body.length >= 10 &&
+        shouldScan(this.__ssUrl || '', '')
+      ) {
         postIntercepted(this.__ssUrl || '', body, 'request:xhr');
       }
     } catch {}
