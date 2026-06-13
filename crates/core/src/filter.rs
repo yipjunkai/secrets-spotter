@@ -1,29 +1,36 @@
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
+
 use regex::Regex;
 
-lazy_static! {
-    // Binary / non-text assets that never carry scannable secrets. Source maps
-    // (`.map`) are deliberately absent: they embed original source, inline
-    // `sourcesContent`, and comments — a prime place for leaked keys/endpoints.
-    static ref SKIP_EXTENSIONS: Regex = Regex::new(
+// Binary / non-text assets that never carry scannable secrets. Source maps
+// (`.map`) are deliberately absent: they embed original source, inline
+// `sourcesContent`, and comments — a prime place for leaked keys/endpoints.
+static SKIP_EXTENSIONS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
         r"(?i-u)\.(png|jpg|jpeg|gif|svg|ico|webp|bmp|tiff|avif|woff2?|ttf|eot|otf|mp3|mp4|webm|ogg|wav|avi|mov|pdf|zip|tar|gz|br|wasm)(\?|$)"
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    static ref SKIP_CONTENT_TYPES: Regex = Regex::new(
-        r"(?i-u)^(image|audio|video|font)/"
-    ).unwrap();
+static SKIP_CONTENT_TYPES: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i-u)^(image|audio|video|font)/").unwrap());
 
-    // Well-known third-party library/framework path segments. A bare `cdn` token
-    // is intentionally absent — it over-matched first-party routes like
-    // `/cdn/config.json`; real CDN *hosts* are handled by SKIP_CDN_HOSTS below.
-    static ref SKIP_PATHS: Regex = Regex::new(
+// Well-known third-party library/framework path segments. A bare `cdn` token
+// is intentionally absent — it over-matched first-party routes like
+// `/cdn/config.json`; real CDN *hosts* are handled by SKIP_CDN_HOSTS below.
+static SKIP_PATHS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
         r"(?i-u)/(jquery|lodash|react|angular|vue|bootstrap|tailwind|fontawesome|googleapis|polyfill|analytics|gtag|gtm)\b"
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    static ref SKIP_CDN_HOSTS: Regex = Regex::new(
+static SKIP_CDN_HOSTS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
         r"(?i-u)^https?://(cdnjs\.cloudflare\.com|unpkg\.com|cdn\.jsdelivr\.net|ajax\.googleapis\.com|cdn\.bootcdn\.net|code\.jquery\.com|stackpath\.bootstrapcdn\.com|maxcdn\.bootstrapcdn\.com|fonts\.googleapis\.com|use\.fontawesome\.com|cdn\.tailwindcss\.com)"
-    ).unwrap();
-}
+    )
+    .unwrap()
+});
 
 pub fn should_scan(url: &str, content_type: &str) -> bool {
     if SKIP_EXTENSIONS.is_match(url) {

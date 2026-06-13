@@ -1,4 +1,5 @@
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
+
 use regex::Regex;
 
 use crate::types::{SecretKind, Severity};
@@ -11,8 +12,8 @@ pub struct SecretPattern {
     pub severity: Severity,
 }
 
-lazy_static! {
-    pub static ref PATTERNS: Vec<SecretPattern> = vec![
+pub static PATTERNS: LazyLock<Vec<SecretPattern>> = LazyLock::new(|| {
+    vec![
         // Match by a fixed prefix or structure baked into the key itself.
 
         // AWS Access Key ID
@@ -596,8 +597,8 @@ lazy_static! {
             label: "Generic Secret/Password",
             severity: Severity::Medium,
         },
-    ];
-}
+    ]
+});
 
 #[cfg(test)]
 mod tests {

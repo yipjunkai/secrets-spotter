@@ -1,54 +1,57 @@
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
+
 use regex::{Regex, RegexSet};
 
 use crate::patterns::PATTERNS;
 use crate::types::{SecretFinding, SecretKind};
 
-lazy_static! {
-    // Values that are clearly not secrets: plain lowercase words with hyphens,
-    // common error/status strings, placeholder values.
-    // `(?u-i:.)` re-enables Unicode (case-folding off) for just the dot
-    // constructs — under `-u` a bare `.` can match invalid UTF-8, which the
-    // regex crate rejects on &str patterns. Needs no optional unicode-* feature.
-    static ref FALSE_POSITIVE: Regex = Regex::new(
+// Values that are clearly not secrets: plain lowercase words with hyphens,
+// common error/status strings, placeholder values.
+// `(?u-i:.)` re-enables Unicode (case-folding off) for just the dot
+// constructs — under `-u` a bare `.` can match invalid UTF-8, which the
+// regex crate rejects on &str patterns. Needs no optional unicode-* feature.
+static FALSE_POSITIVE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
         r#"(?i-u)^(true|false|null|none|undefined|error|invalid|missing|wrong|expired|default|example|changeme|replace(?u-i:.)me|your[_-]?(?u-i:.+)|TODO|FIXME|xxx+|placeholder|test(ing)?|sample|dummy|fake|mock|N/?A|TBD)$"#
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    // Looks like plain English: lowercase letters, optionally hyphen-joined
-    // (single words included now — a real key almost always has a digit or a
-    // capital). No digits, no mixed case.
-    static ref PLAIN_WORDS: Regex = Regex::new(
-        r"^[a-z]+(-[a-z]+)*$"
-    ).unwrap();
+// Looks like plain English: lowercase letters, optionally hyphen-joined
+// (single words included now — a real key almost always has a digit or a
+// capital). No digits, no mixed case.
+static PLAIN_WORDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-z]+(-[a-z]+)*$").unwrap());
 
-    // Value looks like a URL or file path — not a secret
-    static ref URL_OR_PATH: Regex = Regex::new(
-        r"(?i-u)^(https?://|ftp://|s3://|gs://|/[a-z]|\.\.?/|[a-z]:\\)"
-    ).unwrap();
+// Value looks like a URL or file path — not a secret
+static URL_OR_PATH: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i-u)^(https?://|ftp://|s3://|gs://|/[a-z]|\.\.?/|[a-z]:\\)").unwrap()
+});
 
-    // Value contains a file extension — likely a filename/URL, not a secret
-    static ref HAS_FILE_EXT: Regex = Regex::new(
+// Value contains a file extension — likely a filename/URL, not a secret
+static HAS_FILE_EXT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
         r"\.(pdf|html?|js|css|png|jpg|jpeg|gif|svg|woff2?|ttf|json|xml|ya?ml|txt|md|csv|zip|gz|tar|exe|dmg|pkg|deb|rpm|sh|bat|py|rb|go|rs|java|ts|tsx|jsx|vue|php)(?-u:\b)"
-    ).unwrap();
+    )
+    .unwrap()
+});
 
-    // Value looks like a code identifier (variable, class, or constant name).
-    // Matches camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case,
-    // and dot-notation property paths — none of which are real secrets.
-    static ref CODE_IDENTIFIER: Regex = Regex::new(
-        concat!(
-            r"^_*[a-z][a-zA-Z0-9]*([A-Z][a-z0-9]+)+[a-zA-Z0-9]*$",  // camelCase (2+ humps), optional _ prefix
-            r"|^_*[A-Z][a-z]+([A-Z][a-z0-9]+)+$",                     // PascalCase (2+ humps), optional _ prefix
-            r"|^_*[a-z]+(_[a-z0-9]+){2,}_*$",                         // snake_case (3+ segments), optional _/__ prefix/suffix
-            r"|^_*[A-Z]+(_[A-Z0-9]+){2,}$",                           // SCREAMING_SNAKE (3+ segments), optional _ prefix
-            r"|^[a-zA-Z][a-zA-Z0-9]*(-[a-zA-Z0-9]+){2,}$",           // kebab-case (3+ segments)
-            r"|^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){2,}$"   // dot-notation (3+ segments)
-        )
-    ).unwrap();
+// Value looks like a code identifier (variable, class, or constant name).
+// Matches camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case,
+// and dot-notation property paths — none of which are real secrets.
+static CODE_IDENTIFIER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        r"^_*[a-z][a-zA-Z0-9]*([A-Z][a-z0-9]+)+[a-zA-Z0-9]*$", // camelCase (2+ humps), optional _ prefix
+        r"|^_*[A-Z][a-z]+([A-Z][a-z0-9]+)+$", // PascalCase (2+ humps), optional _ prefix
+        r"|^_*[a-z]+(_[a-z0-9]+){2,}_*$", // snake_case (3+ segments), optional _/__ prefix/suffix
+        r"|^_*[A-Z]+(_[A-Z0-9]+){2,}$",   // SCREAMING_SNAKE (3+ segments), optional _ prefix
+        r"|^[a-zA-Z][a-zA-Z0-9]*(-[a-zA-Z0-9]+){2,}$", // kebab-case (3+ segments)
+        r"|^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){2,}$"  // dot-notation (3+ segments)
+    ))
+    .unwrap()
+});
 
-    static ref REGEX_SET: RegexSet = RegexSet::new(
-        PATTERNS.iter().map(|p| p.regex.as_str())
-    ).unwrap();
-}
+static REGEX_SET: LazyLock<RegexSet> =
+    LazyLock::new(|| RegexSet::new(PATTERNS.iter().map(|p| p.regex.as_str())).unwrap());
 
 const MAX_MATCH_LEN: usize = 2048;
 
