@@ -4,7 +4,12 @@
 // env.posted); it never touches chrome.*.
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { createChrome } from './helpers/chrome.js';
-import { createEnv, loadContentScript, makeResponse } from './helpers/loadScript.js';
+import {
+  createEnv,
+  loadContentScript,
+  makeResponse,
+  makeStreamResponse,
+} from './helpers/loadScript.js';
 
 const ORIGIN = 'https://app.example.test';
 const flush = async (n = 4) => {
@@ -204,6 +209,46 @@ describe('interceptor.js — request-phase skip filter', () => {
     await flush();
 
     expect(intercepts(env)).toHaveLength(0);
+  });
+});
+
+describe('interceptor.js — response streaming cap', () => {
+  it('streams and relays a normal-size response body', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    env.fetchMock.mockResolvedValueOnce(
+      makeResponse('streamed-response-body-text', {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    await env.window.fetch(`${ORIGIN}/api/data`);
+    await flush();
+
+    expect(intercepts(env).map((m) => m.text)).toContain('streamed-response-body-text');
+  });
+
+  it('caps an oversized body at 2MB and stops reading early', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    load(env);
+    ready(env);
+
+    const big = 'x'.repeat(3_000_000);
+    const { response, stats } = makeStreamResponse(big, {
+      headers: { 'content-type': 'application/json' },
+    });
+    env.fetchMock.mockResolvedValueOnce(response);
+    await env.window.fetch(`${ORIGIN}/api/big`);
+    await flush(10);
+
+    const relayed = intercepts(env)
+      .map((m) => m.text)
+      .find((t) => t.startsWith('xxx'));
+    expect(relayed).toBeDefined();
+    expect(relayed.length).toBe(2_000_000); // capped at MAX_SIZE
+    expect(stats.bytesPulled).toBeLessThan(2_200_000); // didn't drain the full 3MB
+    expect(stats.cancelled).toBe(true); // reader was cancelled
   });
 });
 

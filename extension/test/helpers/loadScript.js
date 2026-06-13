@@ -14,6 +14,28 @@ import { vi } from 'vitest';
 
 const EXT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
+// Deterministic, microtask-resolving stand-in for crypto.subtle.digest. Real
+// SubtleCrypto hashes off-thread, so its promise never settles under fake
+// timers (advanceTimersByTimeAsync) — which content.js's hash-dedup needs. This
+// folds the input into a 32-byte digest: distinct content -> distinct output
+// (so dedup still distinguishes texts), resolved on a plain microtask.
+const fakeCrypto = {
+  subtle: {
+    digest: async (_algo, data) => {
+      const bytes = new Uint8Array(data);
+      const out = new Uint8Array(32);
+      let h = 0x811c9dc5; // FNV-1a offset basis
+      for (let i = 0; i < bytes.length; i += 1) {
+        h = (h ^ bytes[i]) >>> 0;
+        h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+        out[i % 32] = (out[i % 32] ^ (h & 0xff)) & 0xff;
+      }
+      out[0] = (out[0] ^ (bytes.length & 0xff)) & 0xff;
+      return out.buffer;
+    },
+  },
+};
+
 // Minimal header bag mimicking fetch `Headers` (case-insensitive get + entries).
 function makeHeaders(map = {}) {
   const m = new Map(
@@ -26,15 +48,51 @@ function makeHeaders(map = {}) {
   };
 }
 
-// Fake Response covering what interceptor.js reads: headers.get/entries,
-// clone().text(), text().
-export function makeResponse(body = '', { headers = {} } = {}) {
+// A ReadableStream that emits `text` (UTF-8) in fixed-size chunks. `stats`
+// records bytes pulled / cancellation so a test can prove the reader stopped
+// early instead of draining the whole body.
+function makeBodyStream(text, chunkSize, stats) {
+  const bytes = new TextEncoder().encode(text);
+  let offset = 0;
+  return new ReadableStream({
+    pull(controller) {
+      if (offset >= bytes.length) {
+        controller.close();
+        return;
+      }
+      const end = Math.min(offset + chunkSize, bytes.length);
+      controller.enqueue(bytes.slice(offset, end));
+      if (stats) stats.bytesPulled += end - offset;
+      offset = end;
+    },
+    cancel() {
+      if (stats) stats.cancelled = true;
+    },
+  });
+}
+
+// Fake Response covering what interceptor.js reads: headers.get/entries, a
+// streamed `body` (getReader), clone(), and text(). Each clone() gets its own
+// stream (sharing `stats`), mirroring real clone semantics.
+export function makeResponse(
+  body = '',
+  { headers = {}, stream = true, chunkSize = 65536, stats = null } = {},
+) {
   const h = makeHeaders(headers);
-  return {
+  const make = () => ({
     headers: h,
-    clone: () => ({ text: async () => body }),
+    body: stream ? makeBodyStream(body, chunkSize, stats) : null,
+    clone: () => make(),
     text: async () => body,
-  };
+  });
+  return make();
+}
+
+// Instrumented streaming response: returns { response, stats } so a test can
+// assert how many bytes the interceptor's reader actually pulled.
+export function makeStreamResponse(body, opts = {}) {
+  const stats = { bytesPulled: 0, cancelled: false };
+  return { response: makeResponse(body, { ...opts, stream: true, stats }), stats };
 }
 
 // Fake WebSocket / EventSource constructor the interceptor wraps. Instances are
@@ -182,13 +240,14 @@ export function loadContentScript(relPath, env, { chrome } = {}) {
     MutationObserver: env.MutationObserver,
     Node: env.window.Node,
     TextEncoder: globalThis.TextEncoder,
+    TextDecoder: globalThis.TextDecoder,
     Headers: env.window.Headers ?? globalThis.Headers,
     // Node's Request (undici) — tests construct Request inputs with the same
     // constructor so the interceptor's instanceof check matches.
     Request: globalThis.Request ?? env.window.Request,
     Event: env.window.Event ?? globalThis.Event,
     AbortController: globalThis.AbortController,
-    crypto: globalThis.crypto,
+    crypto: fakeCrypto,
     setTimeout: globalThis.setTimeout,
     clearTimeout: globalThis.clearTimeout,
     setInterval: globalThis.setInterval,
