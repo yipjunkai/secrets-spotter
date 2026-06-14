@@ -1,11 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Secrets Spotter - API Key & Leak Detector",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Detects exposed API keys, tokens, passwords, and secrets in web pages and network traffic. Scans DOM, fetch, XHR, WebSocket, and cookies in real time.",
   "minimum_chrome_version": "111",
-  "permissions": ["storage", "webNavigation"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "storage",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
@@ -22,14 +27,22 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content/interceptor.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content/interceptor.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["<all_urls>"],
-      "js": ["content/content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
