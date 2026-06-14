@@ -785,7 +785,7 @@ dependencies = [
 
 [[package]]
 name = "secrets-spotter"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "secrets-spotter-core"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "criterion",
  "regex",
@@ -812,7 +812,7 @@ dependencies = [
 
 [[package]]
 name = "secrets-spotter-wasm"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "console_error_panic_hook",
  "secrets-spotter-core",
