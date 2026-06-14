@@ -162,7 +162,8 @@ jobs:
         run: |
           mkdir -p release
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
-          cd release && sha256sum ./* > checksums.txt
+          # Hash only the archives (not checksums.txt itself); ./ prefix avoids shellcheck SC2035.
+          cd release && sha256sum ./*.tar.gz ./*.zip > checksums.txt
       - name: Attest build provenance
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
@@ -172,4 +173,6 @@ jobs:
       - name: Upload assets to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.ref_name }}" release/* --clobber
+        # No checkout in this job, so gh can't infer the repo from a git remote —
+        # pass --repo explicitly or it aborts with "fatal: not a git repository".
+        run: gh release upload "${{ github.ref_name }}" release/* --clobber --repo "${{ github.repository }}"
