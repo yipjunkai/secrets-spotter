@@ -22,7 +22,7 @@ $ secrets-spotter src/ .env
 Three-tier detection pipeline tuned for speed and precision:
 
 1. **Known-prefix patterns (50)** — fixed prefixes baked into the credential format itself (`AKIA`, `ghp_`, `sk-ant-`, `eyJ...eyJ`). Highest confidence, lowest false-positive rate.
-2. **Keyword patterns (12)** — service or generic variable names paired with high-entropy values (`aws_secret_access_key=...`, `authorization: Bearer ...`).
+2. **Keyword patterns (12)** — service or generic variable names paired with high-entropy values (`aws_secret_access_key=...`, `authorization: Bearer ...`); includes 3 keyword-gated legacy formats.
 3. **Entropy fallback (2)** — broad keyword match (`key`, `token`, `secret`) with Shannon-entropy validation (≥3.5 bits/char) to catch novel formats.
 
 A `RegexSet` + `memchr` pre-filter on prefix substrings means non-matching input is rejected without running any regex. False-positive filtering rejects placeholders, code identifiers (camelCase / snake_case / kebab-case), URLs, file paths, and low-diversity character sets before reporting.
