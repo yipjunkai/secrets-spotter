@@ -273,3 +273,50 @@ describe('content.js — context invalidation', () => {
     expect(env.mutationObservers[0].disconnect).toHaveBeenCalled();
   });
 });
+
+describe('content.js — storage & URL capture', () => {
+  it('scans localStorage and sessionStorage on load', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    env.window.localStorage.setItem('auth_token', 'stored-localstorage-value-123');
+    env.window.sessionStorage.setItem('csrf', 'stored-sessionstorage-value-456');
+    const chrome = createChrome();
+    loadContentScript('content/content.js', env, { chrome });
+    await flush();
+
+    const scans = sentMessages(chrome).filter((m) => m.type === 'SCAN_TEXT');
+    const local = scans.find((m) => m.source === 'storage:local');
+    const session = scans.find((m) => m.source === 'storage:session');
+
+    expect(local).toBeTruthy();
+    expect(local.text).toContain('auth_token');
+    expect(local.text).toContain('stored-localstorage-value-123');
+    expect(session).toBeTruthy();
+    expect(session.text).toContain('csrf');
+  });
+
+  it('skips storage values below the 8-char floor', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    env.window.localStorage.setItem('k', 'short'); // < 8 chars → ignored
+    const chrome = createChrome();
+    loadContentScript('content/content.js', env, { chrome });
+    await flush();
+
+    const local = sentMessages(chrome).find((m) => m.source === 'storage:local');
+    expect(local).toBeUndefined();
+  });
+
+  it('scans the URL fragment on load (OAuth implicit token)', async () => {
+    // Benign marker (not a real token shape) — this test only proves the URL is
+    // relayed for scanning; the detector itself is exercised in the core tests.
+    const token = 'oauth-implicit-fragment-marker-1234567890';
+    const env = createEnv({ url: `${ORIGIN}/callback#access_token=${token}` });
+    const chrome = createChrome();
+    loadContentScript('content/content.js', env, { chrome });
+    await flush();
+
+    const url = sentMessages(chrome).find((m) => m.source === 'url');
+    expect(url).toBeTruthy();
+    expect(url.text).toContain('access_token');
+    expect(url.text).toContain(token);
+  });
+});
