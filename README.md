@@ -217,68 +217,68 @@ Doing the fetch in the worker rather than the page's MAIN world means the page's
 
 Match by a fixed prefix or structure baked into the credential itself — highest confidence.
 
-| Service            | Prefix/Structure                                               |
-| ------------------ | -------------------------------------------------------------- |
-| AWS Access Key ID  | `AKIA...`                                                      |
-| AWS Temp Key (STS) | `ASIA...`                                                      |
-| GitHub PAT         | `ghp_` / `github_pat_`                                         |
-| GitHub OAuth       | `gho_`                                                         |
-| GitHub App         | `ghu_` / `ghr_` (36 chars)                                     |
-| GitHub App Install | `ghs_` (legacy 36 chars + new stateless ~520 chars)            |
-| Private Key (PEM)  | `-----BEGIN...PRIVATE KEY-----`                                |
-| Private Key (SSH2) | `---- BEGIN SSH2...` / `PuTTY-User-Key-File-`                  |
-| Password in URL    | `protocol://user:pass@host` (incl. redis, mongodb, amqp, smtp) |
-| JWT                | `eyJ...eyJ...`                                                 |
-| Slack              | `xox[bpors]-`                                                  |
-| Slack App-Level    | `xapp-`                                                        |
-| Google API Key     | `AIza`                                                         |
-| Stripe Secret      | `sk_(live\|test)_`                                             |
-| Stripe Publishable | `pk_(live\|test)_`                                             |
-| Stripe Restricted  | `rk_(live\|test)_`                                             |
-| Stripe Webhook     | `whsec_`                                                       |
-| Twilio API Key SID | `SK` + 32 hex chars                                            |
-| Twilio Account SID | `AC` + 32 hex chars                                            |
-| SendGrid           | `SG.`                                                          |
-| Discord Bot        | `[MNO]...(dot-separated base64)`                               |
-| npm                | `npm_`                                                         |
-| PyPI               | `pypi-`                                                        |
-| Shopify            | `shp(at\|ss\|ca\|pa)_`                                         |
-| Square             | `sq0atp-` / `sq0csp-` / `EAAA`                                 |
-| Anthropic          | `sk-ant-(api03\|admin01\|oat01)-`                              |
-| OpenAI (legacy)    | `sk-...T3BlbkFJ...`                                            |
-| OpenAI (new)       | `sk-(proj\|svcacct\|admin)-...T3BlbkFJ...`                     |
-| DigitalOcean       | `dop_v1_`                                                      |
-| Linear             | `lin_api_`                                                     |
-| PostHog            | `ph[cxsar]_`                                                   |
-| GitLab PAT         | `glpat-`                                                       |
-| Cloudflare API     | `cfat_` / `cfut_` / `cfk_`                                     |
-| Cloudflare Origin  | `v1.0-<24hex>-<146hex>`                                        |
-| Supabase Access    | `sbp_`                                                         |
-| Supabase Secret    | `sb_secret_`                                                   |
-| GCP OAuth          | `ya29.`                                                        |
-| Hashicorp Vault    | `hvs.`                                                         |
-| Doppler            | `dp.(st\|sa\|ct\|pt\|scim\|audit).`                            |
-| Vercel             | `vc[pirak]_` (vcp_/vci_/vca_/vcr_/vck_)                        |
-| Databricks         | `dapi`                                                         |
-| Grafana            | `glsa_`                                                        |
-| Pulumi             | `pul-`                                                         |
-| Hugging Face       | `hf_`                                                          |
+| Service            | Prefix/Structure                                               | Severity       |
+| ------------------ | -------------------------------------------------------------- | -------------- |
+| AWS Access Key ID  | `AKIA...`                                                      | Critical       |
+| AWS Temp Key (STS) | `ASIA...`                                                      | Critical       |
+| GitHub PAT         | `ghp_` / `github_pat_`                                         | Critical       |
+| GitHub OAuth       | `gho_`                                                         | Critical       |
+| GitHub App         | `ghu_` / `ghr_` (36 chars)                                     | Critical       |
+| GitHub App Install | `ghs_` (legacy 36 chars + new stateless ~520 chars)            | Critical       |
+| Private Key (PEM)  | `-----BEGIN...PRIVATE KEY-----`                                | Critical       |
+| Private Key (SSH2) | `---- BEGIN SSH2...` / `PuTTY-User-Key-File-`                  | Critical       |
+| Password in URL    | `protocol://user:pass@host` (incl. redis, mongodb, amqp, smtp) | Critical       |
+| JWT                | `eyJ...eyJ...`                                                 | Medium         |
+| Slack              | `xox[bpors]-`                                                  | Critical       |
+| Slack App-Level    | `xapp-`                                                        | Critical       |
+| Google API Key     | `AIza`                                                         | Medium         |
+| Stripe Secret      | `sk_(live\|test)_`                                             | Critical       |
+| Stripe Publishable | `pk_(live\|test)_`                                             | Low            |
+| Stripe Restricted  | `rk_(live\|test)_`                                             | High           |
+| Stripe Webhook     | `whsec_`                                                       | Critical       |
+| Twilio API Key SID | `SK` + 32 hex chars                                            | High           |
+| Twilio Account SID | `AC` + 32 hex chars                                            | Low            |
+| SendGrid           | `SG.`                                                          | Critical       |
+| Discord Bot        | `[MNO]...(dot-separated base64)`                               | Critical       |
+| npm                | `npm_`                                                         | Critical       |
+| PyPI               | `pypi-`                                                        | Critical       |
+| Shopify            | `shp(at\|ss\|ca\|pa)_`                                         | Critical       |
+| Square             | `sq0atp-` / `sq0csp-` / `EAAA`                                 | Critical       |
+| Anthropic          | `sk-ant-(api03\|admin01\|oat01)-`                              | Critical       |
+| OpenAI (legacy)    | `sk-...T3BlbkFJ...`                                            | Critical       |
+| OpenAI (new)       | `sk-(proj\|svcacct\|admin)-...T3BlbkFJ...`                     | Critical       |
+| DigitalOcean       | `dop_v1_`                                                      | Critical       |
+| Linear             | `lin_api_`                                                     | Critical       |
+| PostHog            | `ph[cxsar]_`                                                   | Low / Critical |
+| GitLab PAT         | `glpat-`                                                       | Critical       |
+| Cloudflare API     | `cfat_` / `cfut_` / `cfk_`                                     | Critical       |
+| Cloudflare Origin  | `v1.0-<24hex>-<146hex>`                                        | Critical       |
+| Supabase Access    | `sbp_`                                                         | Critical       |
+| Supabase Secret    | `sb_secret_`                                                   | Critical       |
+| GCP OAuth          | `ya29.`                                                        | Critical       |
+| Hashicorp Vault    | `hvs.`                                                         | Critical       |
+| Doppler            | `dp.(st\|sa\|ct\|pt\|scim\|audit).`                            | Critical       |
+| Vercel             | `vc[pirak]_` (vcp_/vci_/vca_/vcr_/vck_)                        | Critical       |
+| Databricks         | `dapi`                                                         | Critical       |
+| Grafana            | `glsa_`                                                        | Critical       |
+| Pulumi             | `pul-`                                                         | Critical       |
+| Hugging Face       | `hf_`                                                          | Critical       |
 
 ### Keyword patterns (9)
 
 No fixed prefix on the credential itself — matched by a service or generic variable name sitting next to a high-entropy value (lower confidence than known-prefix, so entropy/format-gated).
 
-| Service / Type         | Trigger keyword(s)                             | Value shape       |
-| ---------------------- | ---------------------------------------------- | ----------------- |
-| AWS Secret Access Key  | `aws_secret_access_key` / `secret_key`         | 40 base64 chars   |
-| Heroku API Key         | `heroku_api_key`                               | UUID              |
-| Azure Subscription Key | `subscription_key` / `ocp-apim-…`              | 32 hex            |
-| Datadog API Key        | `dd_api_key` / `datadog_api_key`               | 32 hex            |
-| Cloudflare API Token   | `cloudflare…`                                  | 37–40 chars       |
-| Mailgun API Key        | `mailgun…`                                     | `key-` + 32       |
-| Generic API Key        | `api_key` / `apikey` / `api_secret`            | 20–64 chars       |
-| Bearer Token           | `authorization:` / `auth:` + `Bearer`          | 20–512 chars      |
-| Generic API Token      | `api_token` / `access_token` / `client_secret` | 20–512 (quoted)   |
+| Service / Type         | Trigger keyword(s)                             | Value shape       | Severity       |
+| ---------------------- | ---------------------------------------------- | ----------------- | -------------- |
+| AWS Secret Access Key  | `aws_secret_access_key` / `secret_key`         | 40 base64 chars   | Critical       |
+| Heroku API Key         | `heroku_api_key`                               | UUID              | Critical       |
+| Azure Subscription Key | `subscription_key` / `ocp-apim-…`              | 32 hex            | High           |
+| Datadog API Key        | `dd_api_key` / `datadog_api_key`               | 32 hex            | Critical       |
+| Cloudflare API Token   | `cloudflare…`                                  | 37–40 chars       | Critical       |
+| Mailgun API Key        | `mailgun…`                                     | `key-` + 32       | High           |
+| Generic API Key        | `api_key` / `apikey` / `api_secret`            | 20–64 chars       | Medium         |
+| Bearer Token           | `authorization:` / `auth:` + `Bearer`          | 20–512 chars      | High           |
+| Generic API Token      | `api_token` / `access_token` / `client_secret` | 20–512 (quoted)   | High           |
 
 ### Entropy-based fallback (2)
 
