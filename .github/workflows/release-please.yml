@@ -47,11 +47,13 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ steps.app-token.outputs.token }}
 
-      # release-please bumps Cargo.toml's version but not the workspace crates'
-      # entries in Cargo.lock, so the first cargo run after a release would dirty
-      # the tree. Re-sync the lock and commit it onto the release PR so the merge
-      # commit and tag are self-consistent. Re-runs every invocation (release-
-      # please force-pushes its branch, wiping any prior lock commit); idempotent.
+      # release-please bumps Cargo.toml's version but not the crates' entries in
+      # either lockfile, so the first cargo run after a release would dirty the
+      # tree — and the separate fuzz/ workspace lock going stale breaks the fuzz
+      # job's `cargo fetch --locked` after every release. Re-sync BOTH locks and
+      # commit them onto the release PR so the merge commit and tag are self-
+      # consistent. Re-runs every invocation (release-please force-pushes its
+      # branch, wiping any prior lock commit); idempotent.
       - name: Check out the release PR branch
         if: ${{ steps.release.outputs.pr }}
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -62,15 +64,20 @@ jobs:
       - name: Set up Rust
         if: ${{ steps.release.outputs.pr }}
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-      - name: Sync and commit Cargo.lock
+      - name: Sync and commit Cargo.lock files
         if: ${{ steps.release.outputs.pr }}
         run: |
+          # Root workspace lock (members bumped by the release).
           cargo update -p secrets-spotter-core -p secrets-spotter -p secrets-spotter-wasm
-          if git diff --quiet -- Cargo.lock; then
-            echo "Cargo.lock already in sync; nothing to commit."
+          # fuzz/ is a SEPARATE workspace; its lock pins secrets-spotter-core by
+          # version, so it must be synced too or the fuzz job's
+          # `cargo fetch --locked` fails after every release.
+          cargo update -p secrets-spotter-core --manifest-path fuzz/Cargo.toml
+          if git diff --quiet -- Cargo.lock fuzz/Cargo.lock; then
+            echo "Lockfiles already in sync; nothing to commit."
             exit 0
           fi
           git config user.name "secrets-spotter-release-bot[bot]"
           git config user.email "${{ secrets.RELEASE_PLEASE_APP_ID }}+secrets-spotter-release-bot[bot]@users.noreply.github.com"
-          git commit -m "chore: sync Cargo.lock with release version" -- Cargo.lock
+          git commit -m "chore: sync Cargo.lock files with release version" -- Cargo.lock fuzz/Cargo.lock
           git push origin "HEAD:${{ fromJSON(steps.release.outputs.pr).headBranchName }}"
