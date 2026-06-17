@@ -264,17 +264,21 @@ Match by a fixed prefix or structure baked into the credential itself — highes
 | Pulumi             | `pul-`                                                         |
 | Hugging Face       | `hf_`                                                          |
 
-### Keyword: service-specific (6)
+### Keyword patterns (9)
 
-Match by a service name in the variable name (e.g. `heroku_api_key=...`).
+No fixed prefix on the credential itself — matched by a service or generic variable name sitting next to a high-entropy value (lower confidence than known-prefix, so entropy/format-gated).
 
-AWS Secret Key, Heroku, Azure Subscription Key, Datadog, Cloudflare API Token, Mailgun.
-
-### Keyword: generic dev words (3)
-
-Match by common developer variable names (`api_key=...`, `authorization: Bearer ...`).
-
-Generic API Key, Bearer Token, Generic API Token.
+| Service / Type         | Trigger keyword(s)                             | Value shape       |
+| ---------------------- | ---------------------------------------------- | ----------------- |
+| AWS Secret Access Key  | `aws_secret_access_key` / `secret_key`         | 40 base64 chars   |
+| Heroku API Key         | `heroku_api_key`                               | UUID              |
+| Azure Subscription Key | `subscription_key` / `ocp-apim-…`              | 32 hex            |
+| Datadog API Key        | `dd_api_key` / `datadog_api_key`               | 32 hex            |
+| Cloudflare API Token   | `cloudflare…`                                  | 37–40 chars       |
+| Mailgun API Key        | `mailgun…`                                     | `key-` + 32       |
+| Generic API Key        | `api_key` / `apikey` / `api_secret`            | 20–64 chars       |
+| Bearer Token           | `authorization:` / `auth:` + `Bearer`          | 20–512 chars      |
+| Generic API Token      | `api_token` / `access_token` / `client_secret` | 20–512 (quoted)   |
 
 ### Entropy-based fallback (2)
 
