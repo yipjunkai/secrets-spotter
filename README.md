@@ -87,7 +87,7 @@ Once the Chrome extension is loaded, browse any website. The icon badge shows th
 ## ✨ Features
 
 - **CLI tool** for scanning files, directories, and stdin — CI/CD ready with JSON and SARIF output
-- **Chrome extension** for real-time scanning of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
+- **Chrome extension** for real-time scanning of DOM content, network traffic (fetch, XHR, WebSocket, Server-Sent Events), cookies, `localStorage`/`sessionStorage`, the page URL, and external `<script>` bundles
 - **64 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 58 more (including keyword-gated legacy formats)
 - **False-positive filtering** — Shannon entropy, placeholder detection, code-identifier rejection, URL/path exclusion
 - **JWT decoder in popup** — expandable header / payload JSON view for detected JWTs
@@ -100,7 +100,7 @@ Once the Chrome extension is loaded, browse any website. The icon badge shows th
 - [ ] Firefox support (Manifest V3 port)
 - [ ] User-defined rules via options page
 - [ ] Per-site disable toggle and severity filtering in popup
-- [ ] Allowlisting for known-safe values (public keys, test fixtures)
+- [ ] User-defined allowlisting for known-safe values (beyond the built-in example-key filter)
 - [ ] Dark mode in popup
 
 ## 🤔 Why Secrets Spotter exists
@@ -121,6 +121,7 @@ secrets-spotter/
 ├── Cargo.toml                  # Workspace root
 ├── crates/
 │   ├── core/                   # Shared detection library (no WASM deps)
+│   │   ├── benches/            # Criterion scan bench + CI regression corpus
 │   │   └── src/
 │   │       ├── lib.rs          # Public API (scan_text, merge_findings)
 │   │       ├── detector.rs     # Detection engine + false-positive filtering
@@ -128,7 +129,9 @@ secrets-spotter/
 │   │       ├── types.rs        # SecretKind, Severity, SecretFinding
 │   │       ├── filter.rs       # URL/content filtering (skip CDNs, media)
 │   │       ├── cookies.rs      # Cookie parsing utility
-│   │       └── attributes.rs   # HTML attribute formatting
+│   │       ├── attributes.rs   # HTML attribute formatting
+│   │       ├── test_fixtures.rs # Secret-free fixture builders (tests + fuzz seeds)
+│   │       └── pattern_tests.rs # Per-pattern positive/negative cases
 │   ├── cli/                    # CLI binary
 │   │   └── src/
 │   │       ├── main.rs         # Entry point + arg parsing
@@ -144,8 +147,11 @@ secrets-spotter/
 │   │   ├── interceptor.js      # Network traffic capture (MAIN world)
 │   │   └── content.js          # DOM scanning (ISOLATED world)
 │   ├── popup/
+│   ├── icons/                  # Extension icons (16/32/48/128 px)
+│   ├── test/                   # vitest suite (happy-dom)
 │   └── wasm/                   # Compiled WASM output (build artifacts)
-├── .github/workflows/          # ci (verify), release, security, stale
+├── fuzz/                       # cargo-fuzz workspace (5 targets) — see fuzz/README.md
+├── .github/workflows/          # verify (CI), release, release-please, security, audit, scorecard, fuzz, stale
 └── justfile                    # Build, test, lint, clean recipes
 ```
 
@@ -161,12 +167,15 @@ secrets-spotter [OPTIONS] [PATH...]
 | `-f, --format <FMT>`  | `text` (default), `json`, `sarif`                                              |
 | `-s, --severity <L>`  | Minimum severity: `critical`, `high`, `medium`, `low` (default)                |
 | `-g, --glob <P>`      | Only scan files matching glob (comma-separated, e.g. `"*.js,*.env"`)           |
+| `--no-ignore`         | Also scan files a directory walk would skip via `.gitignore` / `.ignore` (skipped by default) |
 | `--max-size <N>`      | Max file size in bytes (default 2,097,152 = 2 MiB)                             |
 | `--reveal`            | Print full unredacted match values (off by default — secrets are masked)       |
 | `--no-color`          | Disable colored output                                                         |
 | `-q, --quiet`         | Suppress output, exit code only                                                |
 | `-h, --help`          | Print help                                                                     |
 | `-V, --version`       | Print version                                                                  |
+
+> **Directory scans honor `.gitignore`.** Walking a directory skips files matched by `.gitignore` / `.ignore` / git exclude rules — which often includes `.env`. Pass `--no-ignore` to include them, or name the file directly as a path argument (explicitly-listed files are always scanned).
 
 Exit codes:
 
@@ -248,7 +257,7 @@ Match by a fixed prefix or structure baked into the credential itself — highes
 | Supabase Secret    | `sb_secret_`                                                   |
 | GCP OAuth          | `ya29.`                                                        |
 | Hashicorp Vault    | `hvs.`                                                         |
-| Doppler            | `dp.(st\|sa\|ct).`                                             |
+| Doppler            | `dp.(st\|sa\|ct\|pt\|scim\|audit).`                            |
 | Vercel             | `vc[pirak]_` (vcp_/vci_/vca_/vcr_/vck_)                        |
 | Databricks         | `dapi`                                                         |
 | Grafana            | `glsa_`                                                        |
@@ -287,7 +296,7 @@ OpenAI's legacy `sk-…T3BlbkFJ…` and Square's `sq0atp-` are also labeled `(le
 - **Example-key allowlist** — skips published non-functional sample credentials (AWS's `AKIA...EXAMPLE`, Stripe's documentation test keys) across all pattern tiers, including known-prefix
 - **Template / interpolation rejection** — skips `{{...}}`, `${...}`, `<...>`, `%...%`, and `name()` call wrappers
 - **Shannon entropy** — rejects low-entropy values for entropy-gated patterns (UTF-8-aware, counts chars not bytes)
-- **Character class diversity** — requires a mix of upper, lower, digits, or symbols / non-ASCII
+- **Character class diversity** — high-entropy values must mix at least 2 of: uppercase, lowercase, digits (symbols / non-ASCII don't count toward the threshold)
 - **English word filtering** — ignores lowercase hyphenated phrases like `my-setting`
 - **URL / path exclusion** — ignores values that look like URLs or file paths
 - **Code identifier rejection** — skips camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case, and dot-notation values
