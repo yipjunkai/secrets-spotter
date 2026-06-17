@@ -71,6 +71,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     return details;
   }
 
+  // Short tag shown next to each finding indicating where it was captured.
+  function sourceTag(source) {
+    if (!source) return '[DOM]';
+    if (source.startsWith('network:')) return `[${source.replace('network:', '').toUpperCase()}]`;
+    if (source.startsWith('storage:')) return `[${source.replace('storage:', '').toUpperCase()} STORAGE]`;
+    if (source === 'url') return '[URL]';
+    if (source.startsWith('dom')) return '[DOM]';
+    return `[${source.toUpperCase()}]`;
+  }
+
   let lastFindingsKey = '';
 
   let firstRender = true;
@@ -155,12 +165,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const f of findings) {
       const li = document.createElement('li');
       li.className = `finding severity-${f.severity.toLowerCase()}`;
-      const sourceLabel = f.source?.startsWith('network:') ? `[${f.source.replace('network:', '').toUpperCase()}]` : '[DOM]';
+      const tag = sourceTag(f.source);
 
       const header = document.createElement('strong');
       header.appendChild(document.createTextNode(f.label + ' '));
       const headerSmall = document.createElement('small');
-      headerSmall.textContent = sourceLabel;
+      headerSmall.textContent = tag;
       header.appendChild(headerSmall);
 
       const codeRow = document.createElement('div');

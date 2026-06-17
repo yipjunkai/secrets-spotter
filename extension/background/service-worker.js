@@ -169,6 +169,8 @@ function normalizeSource(source) {
   if (!source) return 'unknown';
   if (source === 'dom' || source === 'dom:structured') return 'dom';
   if (source === 'cookie') return 'cookie';
+  if (source.startsWith('storage:')) return 'storage'; // storage:local / :session / :idb
+  if (source === 'url') return 'url';
   // network:fetch, network:xhr, network:websocket, network:sse, etc.
   const match = source.match(/^network:(?:request:|header:)?(.+)$/);
   return match ? match[1] : source;
@@ -212,7 +214,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       let textToScan = message.text;
       if (message.source === 'cookie' || message.source === 'network:cookie') {
         textToScan = parse_cookies(message.text);
-      } else if (message.source === 'dom:structured') {
+      } else if (
+        message.source === 'dom:structured' ||
+        message.source === 'storage:local' ||
+        message.source === 'storage:session'
+      ) {
+        // Storage entries are key/value pairs, same shape as data-* attributes.
         textToScan = format_attributes(message.text);
       }
 

@@ -113,6 +113,41 @@
     return pairs.length > 0 ? JSON.stringify(pairs) : '';
   }
 
+  // OAuth implicit-flow tokens land in the URL fragment (#access_token=…) and
+  // query strings carry tokens too; the URL is otherwise only used as scan
+  // metadata, never scanned as text.
+  function scanUrl() {
+    let href = window.location.href;
+    try {
+      href = decodeURIComponent(href);
+    } catch {
+      /* malformed %-escape — fall back to the raw href */
+    }
+    sendForScan(href, window.location.href, 'url');
+  }
+
+  // localStorage / sessionStorage are where SPAs stash JWTs, OAuth tokens, and
+  // API keys. content.js (ISOLATED world) shares the page origin's storage, so
+  // read it synchronously and route the key/value pairs through the same
+  // structured path as data-* attributes (format_attributes in the worker).
+  function scanStorage(store, source) {
+    const pairs = [];
+    try {
+      for (let i = 0; i < store.length; i += 1) {
+        const key = store.key(i);
+        const value = store.getItem(key);
+        if (value && value.length >= 8) {
+          pairs.push({ name: key, value });
+        }
+      }
+    } catch {
+      return; // storage access can throw when partitioned or disabled
+    }
+    if (pairs.length > 0) {
+      sendForScan(JSON.stringify(pairs), window.location.href, source);
+    }
+  }
+
   // Defer the synchronous DOM serialization (outerHTML) + full-tree attribute
   // walk off the critical path: on a large page these block the main thread,
   // and on load/navigation that stall is user-visible. requestIdleCallback runs
@@ -129,6 +164,9 @@
       if (structured) {
         sendForScan(structured, window.location.href, 'dom:structured');
       }
+      scanUrl();
+      scanStorage(window.localStorage, 'storage:local');
+      scanStorage(window.sessionStorage, 'storage:session');
     });
   }
 
