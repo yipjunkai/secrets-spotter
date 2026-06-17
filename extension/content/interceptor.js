@@ -1,20 +1,13 @@
 // Runs in MAIN world to intercept all text-based content the browser receives.
 // Patches fetch(), XMLHttpRequest, WebSocket, and EventSource.
-// Also re-fetches external <script> and <link> files.
 // Posts captured text back to the content script via window.postMessage.
+// (External <script>/<link> files are fetched + scanned by the service worker,
+// driven by content.js — the worker isn't bound by the page's CSP.)
 (function () {
   'use strict';
 
   const MAX_SIZE = 2_000_000; // 2MB cap
   const BATCH_INTERVAL = 2000; // 2s flush for streaming sources
-
-  // Re-fetching external <script src> and <link stylesheet> files is disabled by
-  // default because the fetch runs in the MAIN world (under the page's CSP).
-  // Sites with strict Content-Security-Policy `connect-src` directives will block
-  // these fetches and log noisy console errors.  Most secrets in external scripts
-  // are already caught indirectly when the script uses them in fetch/XHR calls
-  // (intercepted by the patched network APIs above).  Set to `true` to enable.
-  const SCAN_EXTERNAL_RESOURCES = false;
 
   // Binary / non-text assets that never carry scannable secrets. Source maps
   // (`.map`) are deliberately absent — they embed original source and inline
@@ -29,8 +22,6 @@
   const SKIP_PATHS = /\/(jquery|lodash|react|angular|vue|bootstrap|tailwind|fontawesome|googleapis|polyfill|analytics|gtag|gtm)\b/i;
 
   const SKIP_CDN_HOSTS = /^https?:\/\/(cdnjs\.cloudflare\.com|unpkg\.com|cdn\.jsdelivr\.net|ajax\.googleapis\.com|cdn\.bootcdn\.net|code\.jquery\.com|stackpath\.bootstrapcdn\.com|maxcdn\.bootstrapcdn\.com|fonts\.googleapis\.com|use\.fontawesome\.com|cdn\.tailwindcss\.com)/i;
-
-  const fetchController = new AbortController();
 
   // The ISOLATED-world relay (content.js) runs at document_idle, later than this
   // MAIN-world script (document_start), and window.postMessage does not queue for
@@ -391,55 +382,6 @@
     window.EventSource.CLOSED = OriginalEventSource.CLOSED;
   }
 
-  // Scan external <script src> and <link stylesheet> files
-  function scanExternalScripts() {
-    const scripts = document.querySelectorAll('script[src]');
-    const seen = new Set();
-
-    for (const script of scripts) {
-      const src = script.src;
-      if (!src || seen.has(src)) continue;
-      seen.add(src);
-      if (!shouldScan(src, '')) continue;
-
-      // Use originalFetch to avoid triggering our own fetch() interceptor
-      originalFetch(src, { credentials: 'same-origin', signal: fetchController.signal })
-        .then((res) => {
-          if (!res.ok) return;
-          const ct = res.headers.get('content-type') || '';
-          if (ct && !ct.includes('javascript') && !ct.includes('text') && !ct.includes('json')) return;
-          return res.text();
-        })
-        .then((body) => {
-          if (body) postIntercepted(src, body, 'script');
-        })
-        .catch(() => {});
-    }
-  }
-
-  function scanExternalStylesheets() {
-    const links = document.querySelectorAll('link[rel="stylesheet"][href]');
-    const seen = new Set();
-
-    for (const link of links) {
-      const href = link.href;
-      if (!href || seen.has(href)) continue;
-      seen.add(href);
-      if (!shouldScan(href, '')) continue;
-
-      // Use originalFetch to avoid triggering our own fetch() interceptor
-      originalFetch(href, { credentials: 'same-origin', signal: fetchController.signal })
-        .then((res) => {
-          if (!res.ok) return;
-          return res.text();
-        })
-        .then((body) => {
-          if (body) postIntercepted(href, body, 'css');
-        })
-        .catch(() => {});
-    }
-  }
-
   // Scan cookies
   function scanCookies() {
     const cookies = document.cookie;
@@ -448,21 +390,12 @@
     }
   }
 
-  // Trigger after DOM is fully loaded so all script/link tags are present
+  // Scan cookies once the document is ready. (External <script>/<link> files are
+  // now fetched + scanned by the service worker, driven by content.js.)
   if (document.readyState === 'complete') {
-    if (SCAN_EXTERNAL_RESOURCES) {
-      scanExternalScripts();
-      scanExternalStylesheets();
-    }
     scanCookies();
   } else {
-    window.addEventListener('load', () => {
-      if (SCAN_EXTERNAL_RESOURCES) {
-        scanExternalScripts();
-        scanExternalStylesheets();
-      }
-      scanCookies();
-    }, { once: true });
+    window.addEventListener('load', () => scanCookies(), { once: true });
   }
 
   // SPA navigation detection — pushState, replaceState, popstate, hashchange
@@ -512,15 +445,6 @@
     }
     pendingPosts.length = 0;
     pendingBytes = 0;
-  });
-
-  // Listen for context invalidation signal from ISOLATED world content script
-  window.addEventListener('__SECRETS_SPOTTER_CLEANUP__', () => {
-    fetchController.abort();
-  });
-
-  window.addEventListener('pagehide', () => {
-    fetchController.abort();
   });
 
 })();

@@ -320,3 +320,28 @@ describe('content.js — storage & URL capture', () => {
     expect(url.text).toContain(token);
   });
 });
+
+describe('content.js — external scripts', () => {
+  it('collects <script src> URLs and asks the worker to scan them', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    const s = env.document.createElement('script');
+    s.src = `${ORIGIN}/static/app.bundle.js`;
+    env.document.head.appendChild(s);
+    const chrome = createChrome();
+    loadContentScript('content/content.js', env, { chrome });
+    await flush();
+
+    const ext = sentMessages(chrome).find((m) => m.type === 'SCAN_EXTERNAL');
+    expect(ext).toBeTruthy();
+    expect(ext.urls).toContain(`${ORIGIN}/static/app.bundle.js`);
+  });
+
+  it('sends no SCAN_EXTERNAL when the page has no external scripts', async () => {
+    const env = createEnv({ url: `${ORIGIN}/page` });
+    const chrome = createChrome();
+    loadContentScript('content/content.js', env, { chrome });
+    await flush();
+
+    expect(sentMessages(chrome).some((m) => m.type === 'SCAN_EXTERNAL')).toBe(false);
+  });
+});

@@ -165,6 +165,76 @@ async function withTabLock(tabId, fn) {
   return next;
 }
 
+// ── External-bundle scanning (SCAN_EXTERNAL) ─────────────────────────────────
+// Fetch first-party <script src> from the worker, which (unlike a MAIN-world
+// re-fetch) isn't bound by the page's CSP and already holds <all_urls> host
+// permission. Cache findings per URL so a bundle shared across pages/tabs is
+// fetched once; bound the cache, the per-page fetch count, and the read size.
+const externalScanCache = new Map(); // url -> SecretFinding[]
+const MAX_EXTERNAL_CACHE = 200;
+const MAX_EXTERNAL_PER_PAGE = 20;
+const EXTERNAL_FETCH_TIMEOUT_MS = 10_000;
+const MAX_EXTERNAL_BYTES = 2_000_000; // matches the 2 MB scan cap
+
+function cacheExternal(url, findings) {
+  if (externalScanCache.size >= MAX_EXTERNAL_CACHE) {
+    // Evict the oldest entry (Map preserves insertion order).
+    externalScanCache.delete(externalScanCache.keys().next().value);
+  }
+  externalScanCache.set(url, findings);
+}
+
+// Fetch a URL with a timeout and no credentials, capping the read at the scan
+// size so a huge bundle can't be pulled in full. Returns the (possibly
+// truncated) body text, or '' on a non-OK response.
+async function fetchCapped(url) {
+  const signal = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout)
+    ? AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS)
+    : undefined;
+  const res = await fetch(url, { signal, credentials: 'omit', redirect: 'follow' });
+  if (!res.ok) return '';
+
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const text = await res.text();
+    return text.length > MAX_EXTERNAL_BYTES ? text.slice(0, MAX_EXTERNAL_BYTES) : text;
+  }
+  const decoder = new TextDecoder();
+  let out = '';
+  while (out.length < MAX_EXTERNAL_BYTES) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    out += decoder.decode(value, { stream: true });
+  }
+  try { await reader.cancel(); } catch { /* already closed */ }
+  return out.length > MAX_EXTERNAL_BYTES ? out.slice(0, MAX_EXTERNAL_BYTES) : out;
+}
+
+// Merge a scan's findings into a tab's record: drop stale-document scans,
+// dedupe via Rust merge_findings, bump counts, and refresh the badge. Shared by
+// the SCAN_TEXT relay and the SCAN_EXTERNAL bundle fetcher.
+async function mergeIntoTab(tabId, sender, findings, source, url) {
+  await withTabLock(tabId, async () => {
+    const tabData = await getTabData(tabId);
+
+    // Drop scans from a document that a later navigation already superseded.
+    if (tabData.documentId && sender.documentId &&
+        tabData.documentId !== sender.documentId) {
+      return;
+    }
+
+    tabData.url = tabData.url || url;
+    tabData.findings = merge_findings(tabData.findings, findings);
+    tabData.scanned = (tabData.scanned || 0) + 1;
+    tabData.lastScanTs = Date.now();
+    tabData.sources = tabData.sources || {};
+    tabData.sources[source] = (tabData.sources[source] || 0) + 1;
+
+    await setTabData(tabId, tabData);
+    updateBadge(tabId, significantCount(tabData.findings));
+  });
+}
+
 function normalizeSource(source) {
   if (!source) return 'unknown';
   if (source === 'dom' || source === 'dom:structured') return 'dom';
@@ -231,35 +301,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const newFindings = scan_text(textToScan);
 
       if (tabId != null) {
-        // Tag each finding with its source
         for (const f of newFindings) {
           f.source = message.source || 'unknown';
           f.sourceUrl = message.url || '';
         }
-
-        await withTabLock(tabId, async () => {
-          const tabData = await getTabData(tabId);
-
-          // Drop scans from a document that a later navigation already
-          // superseded, so stale findings aren't attributed to the new page.
-          if (tabData.documentId && sender.documentId &&
-              tabData.documentId !== sender.documentId) {
-            return;
-          }
-
-          tabData.url = tabData.url || message.url;
-
-          // Deduplicate via Rust
-          tabData.findings = merge_findings(tabData.findings, newFindings);
-
-          tabData.scanned = (tabData.scanned || 0) + 1;
-          tabData.lastScanTs = Date.now();
-          tabData.sources = tabData.sources || {};
-          tabData.sources[source] = (tabData.sources[source] || 0) + 1;
-
-          await setTabData(tabId, tabData);
-          updateBadge(tabId, significantCount(tabData.findings));
-        });
+        await mergeIntoTab(tabId, sender, newFindings, source, message.url);
       }
 
       // The content script discards this response (it only checks lastError),
@@ -269,6 +315,64 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.warn('Secrets Spotter: scan failed:', err.message);
       appendToLog(logEntry('service-worker', `scan failed: ${err.message}`, err.stack));
       sendResponse({ findings: [] });
+    });
+    return true;
+  }
+
+  if (message.type === 'SCAN_EXTERNAL') {
+    const tabId = sender.tab?.id;
+    const urls = Array.isArray(message.urls)
+      ? message.urls.filter((u) => typeof u === 'string' && /^https?:/i.test(u))
+      : [];
+    initWasm().then(async () => {
+      let budget = MAX_EXTERNAL_PER_PAGE;
+      let capped = 0;
+      const seen = new Set();
+
+      await Promise.all(urls.map(async (url) => {
+        if (seen.has(url)) return;
+        seen.add(url);
+        // should_scan reuses the CDN-host / media / library skip lists, so a
+        // bundle from cdnjs/unpkg/etc. is never fetched — only first-party JS.
+        if (!should_scan(url, '')) return;
+        if (budget <= 0) { capped += 1; return; }
+        budget -= 1;
+
+        let findings = externalScanCache.get(url);
+        if (!findings) {
+          let body;
+          try {
+            body = await fetchCapped(url);
+          } catch (err) {
+            appendToLog(logEntry('service-worker', `external fetch failed: ${err.message}`, err.stack, url));
+            return;
+          }
+          if (!body || body.length < 10) {
+            cacheExternal(url, []);
+            return;
+          }
+          findings = scan_text(body);
+          for (const f of findings) {
+            f.source = 'script';
+            f.sourceUrl = url;
+          }
+          cacheExternal(url, findings);
+        }
+
+        if (findings.length > 0 && tabId != null) {
+          await mergeIntoTab(tabId, sender, findings, 'script', url);
+        }
+      }));
+
+      if (capped > 0) {
+        appendToLog(logEntry('service-worker',
+          `external scan hit the ${MAX_EXTERNAL_PER_PAGE}-script/page budget; skipped ${capped}`,
+          null, message.url));
+      }
+      sendResponse({ ok: true });
+    }).catch((err) => {
+      appendToLog(logEntry('service-worker', `external scan failed: ${err.message}`, err.stack));
+      sendResponse({ ok: false });
     });
     return true;
   }

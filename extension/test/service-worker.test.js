@@ -1,7 +1,7 @@
 // Service worker: badge accounting, source normalization, the SCAN_TEXT
 // pipeline (filter → preprocess → scan → merge → badge), DOM-finding clearing,
 // and navigation reset. The wasm glue and chrome.* are mocked.
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   loadServiceWorker,
   teardownServiceWorker,
@@ -179,5 +179,67 @@ describe('service worker — log + response hygiene', () => {
     wasm.scan_text.mockReturnValue([finding('High', 'x')]);
     const res = await sendMessage(scanMsg(), { tab: { id: 1 } }).done;
     expect(res).toEqual({ ok: true });
+  });
+});
+
+describe('service worker — SCAN_EXTERNAL (bundle fetch)', () => {
+  const REAL_FETCH = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = REAL_FETCH; });
+
+  const okJs = (body) => ({
+    ok: true,
+    headers: { get: () => 'application/javascript' },
+    text: async () => body,
+    body: null, // exercises the text() path in fetchCapped
+  });
+
+  it('fetches external scripts and merges findings tagged source=script', async () => {
+    const { sendMessage, wasm } = await loadServiceWorker();
+    globalThis.fetch = vi.fn(async () => okJs('var k = "leaked-bundle-secret";'));
+    wasm.scan_text.mockReturnValue([finding('Critical', 'leaked-bundle-secret')]);
+
+    await sendMessage(
+      {
+        type: 'SCAN_EXTERNAL',
+        urls: ['https://app.example.test/app.js'],
+        url: 'https://app.example.test/page',
+      },
+      { tab: { id: 11 }, documentId: 'doc-1' },
+    ).done;
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    const got = await sendMessage({ type: 'GET_FINDINGS', tabId: 11 }).done;
+    expect(got.findings.map((f) => f.full_match)).toContain('leaked-bundle-secret');
+    expect(got.findings[0].source).toBe('script');
+    expect(got.sources).toMatchObject({ script: 1 });
+  });
+
+  it('skips URLs that should_scan rejects, without fetching', async () => {
+    const { sendMessage, wasm } = await loadServiceWorker();
+    globalThis.fetch = vi.fn();
+    wasm.should_scan.mockReturnValue(false);
+
+    await sendMessage(
+      {
+        type: 'SCAN_EXTERNAL',
+        urls: ['https://cdnjs.cloudflare.com/x.js'],
+        url: 'https://app.example.test/page',
+      },
+      { tab: { id: 12 } },
+    ).done;
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('fetches each unique URL only once across requests (dedup cache)', async () => {
+    const { sendMessage, wasm } = await loadServiceWorker();
+    globalThis.fetch = vi.fn(async () => okJs('noop();'));
+    wasm.scan_text.mockReturnValue([]);
+    const url = 'https://app.example.test/cached.js';
+
+    await sendMessage({ type: 'SCAN_EXTERNAL', urls: [url], url: 'p' }, { tab: { id: 13 } }).done;
+    await sendMessage({ type: 'SCAN_EXTERNAL', urls: [url], url: 'p' }, { tab: { id: 13 } }).done;
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 });

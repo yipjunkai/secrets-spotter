@@ -148,6 +148,37 @@
     }
   }
 
+  // External JS bundles are a top secret-leak surface (hardcoded keys in config
+  // objects, keys used only inside a Worker, etc.) that the network interceptor
+  // misses unless the page later *uses* the key in an intercepted call. We
+  // collect <script src> URLs and let the SERVICE WORKER fetch + scan them: the
+  // worker isn't bound by the page's CSP (a MAIN-world re-fetch is) and already
+  // holds <all_urls> host permission. Default on; the future options page will
+  // gate this. Set to false to disable.
+  const SCAN_EXTERNAL_RESOURCES = true;
+
+  function scanExternalScripts() {
+    if (!SCAN_EXTERNAL_RESOURCES || !isContextValid()) return;
+    let urls;
+    try {
+      urls = [...document.querySelectorAll('script[src]')]
+        .map((s) => s.src)
+        .filter((u) => /^https?:/i.test(u)); // skip data:/blob:/extension URLs
+    } catch {
+      return;
+    }
+    if (urls.length === 0) return;
+    try {
+      chrome.runtime.sendMessage({
+        type: 'SCAN_EXTERNAL',
+        urls,
+        url: window.location.href,
+      });
+    } catch {
+      /* extension context destroyed */
+    }
+  }
+
   // Defer the synchronous DOM serialization (outerHTML) + full-tree attribute
   // walk off the critical path: on a large page these block the main thread,
   // and on load/navigation that stall is user-visible. requestIdleCallback runs
@@ -167,6 +198,7 @@
       scanUrl();
       scanStorage(window.localStorage, 'storage:local');
       scanStorage(window.sessionStorage, 'storage:session');
+      scanExternalScripts();
     });
   }
 

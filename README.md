@@ -180,9 +180,11 @@ Exit codes:
 
 ```text
 Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
-            → content.js extracts DOM text + structured attributes
+            → content.js extracts DOM + structured attrs, localStorage/
+              sessionStorage, and the URL; collects external <script src> URLs
             → Text truncated to 2 MB and deduplicated by SHA-256 hash
-            → Background service worker runs the WASM scanner
+            → Background service worker runs the WASM scanner — and fetches the
+              external <script> bundles itself (free of the page's CSP)
             → Rust matches against RegexSet (+ memchr prefix prefilter)
             → False positives filtered (entropy, placeholders, code identifiers, English words)
             → Findings deduplicated in single O(n) pass, merged across scan batches
@@ -190,13 +192,13 @@ Page loaded → interceptor.js patches fetch, XHR, WebSocket, SSE, and cookies
             → SPA navigations trigger re-scan automatically
 ```
 
-### `SCAN_EXTERNAL_RESOURCES` (`extension/content/interceptor.js`)
+### External script scanning (`extension/content/content.js`)
 
-Controls whether the extension re-fetches external `<script src>` and `<link stylesheet>` files to scan their contents. **Default: `false`.**
+External `<script src>` bundles are a primary secret-leak surface — hardcoded keys in config objects, keys used only inside a Worker, etc. — that the network interceptor misses unless the page later *uses* the key in an intercepted call. `content.js` collects their URLs and the **service worker** fetches and scans each one.
 
-Disabled by default because the interceptor runs in the page's MAIN world, where fetches are subject to the page's Content Security Policy. Sites with strict `connect-src` directives will block these fetches and log console errors. Most secrets in external scripts are caught indirectly when the script *uses* them in fetch/XHR calls — which the interceptor captures regardless.
+Doing the fetch in the worker rather than the page's MAIN world means the page's Content Security Policy (`connect-src`) doesn't apply and there are no console errors. Each unique URL is fetched once (cached), the read is size-capped, and CDN/library hosts are skipped via the shared `should_scan` filter — so only first-party bundles are fetched.
 
-To enable: set `SCAN_EXTERNAL_RESOURCES = true` in `extension/content/interceptor.js`.
+**Default: on.** Set `SCAN_EXTERNAL_RESOURCES = false` in `extension/content/content.js` to disable.
 
 ## 🔍 Detection patterns
 
