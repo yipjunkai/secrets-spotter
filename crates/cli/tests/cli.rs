@@ -12,9 +12,10 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use tempfile::tempdir;
 
-/// AWS example key ID — Critical.
+/// Synthetic AWS key ID (Critical). Deliberately not the `AKIA…EXAMPLE` docs
+/// key, which the detector now filters as a known published example.
 fn aws_key() -> String {
-    format!("AKIA{}", "IOSFODNN7EXAMPLE")
+    format!("AKIA{}", "1A2B3C4D5E6F7G8H")
 }
 
 /// Stripe publishable key — Low severity (public by design).

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use regex::{Regex, RegexSet};
@@ -48,6 +49,28 @@ static CODE_IDENTIFIER: LazyLock<Regex> = LazyLock::new(|| {
         r"|^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){2,}$"  // dot-notation (3+ segments)
     ))
     .unwrap()
+});
+
+// Published, non-functional example credentials that appear verbatim in vendor
+// docs and tutorials. Known-prefix and keyword kinds bypass the kind-specific FP
+// checks below, so without this they are reported as real findings. ONLY add a
+// value an official vendor publishes as a non-working example — never a guessed or
+// scraped key, which could be a live leaked secret that this list would then
+// silently suppress. AWS's keys carry the `EXAMPLE` marker and are also caught by
+// the substring heuristic in `is_false_positive`; non-marked examples (Stripe's
+// docs keys) require this exact-match set. Split with `concat!` so a contiguous
+// secret-shaped literal never appears in source (see test_fixtures.rs rationale).
+static EXAMPLE_ALLOWLIST: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    HashSet::from([
+        // AWS — canonical docs examples (also matched by the EXAMPLE heuristic;
+        // listed explicitly for defense in depth).
+        concat!("AKIA", "IOSFODNN7", "EXAMPLE"),
+        concat!("wJalrXUtnFEMI/K7MDENG/", "bPxRfiCYEXAMPLEKEY"),
+        // Stripe — documentation sample keys (test mode), present in every Stripe
+        // API example. No EXAMPLE marker, so they need this exact-match entry.
+        concat!("sk_test_", "4eC39HqLyjWDarjtT1zdp7dc"),
+        concat!("pk_test_", "TYooMQauvdEDq54NiTphI7jx"),
+    ])
 });
 
 static REGEX_SET: LazyLock<RegexSet> =
@@ -134,7 +157,48 @@ impl SecretDetector {
         CODE_IDENTIFIER.is_match(value)
     }
 
+    // Template / interpolation / function-call wrappers are never literal
+    // secrets: `{{cf-secret}}`, `${API_KEY}`, `getPassword()`, `<your-token>`,
+    // `%API_KEY%`. Plain ASCII string ops — no regex (and the `regex` crate has
+    // no backreferences, so such a pattern could not be expressed anyway).
+    fn is_template_or_call(value: &str) -> bool {
+        value.contains("{{")
+            || value.contains("${")
+            || value.ends_with("()")
+            || (value.starts_with('<') && value.ends_with('>'))
+            || (value.starts_with('%') && value.ends_with('%'))
+    }
+
+    // True when a single character repeats `n` or more times consecutively
+    // (e.g. `AAAAA`) — a cheap structural tell for padded or templated blobs that
+    // still clear the Shannon-entropy gate. Imperative because the `regex` crate
+    // has no backreferences, so `(\S)\1{4,}` will not compile.
+    fn has_repeated_run(value: &str, n: usize) -> bool {
+        let mut prev = None;
+        let mut run = 0usize;
+        for c in value.chars() {
+            run = if Some(c) == prev { run + 1 } else { 1 };
+            prev = Some(c);
+            if run >= n {
+                return true;
+            }
+        }
+        false
+    }
+
     fn is_false_positive(kind: &SecretKind, value: &str) -> bool {
+        // Universal pre-filter — runs for EVERY kind, including the known-prefix
+        // and keyword kinds that otherwise fall straight through to `_ => false`.
+        // Rejects published example credentials (e.g. `AKIAIOSFODNN7EXAMPLE`,
+        // Stripe's docs keys) and template / interpolation / call placeholders.
+        // `EXAMPLE` (case-sensitive) is AWS's documented example-key marker.
+        if EXAMPLE_ALLOWLIST.contains(value)
+            || value.contains("EXAMPLE")
+            || Self::is_template_or_call(value)
+        {
+            return true;
+        }
+
         match kind {
             SecretKind::GenericSecret | SecretKind::GenericApiKey | SecretKind::GenericToken => {
                 if Self::is_url_or_path(value) {
@@ -163,6 +227,11 @@ impl SecretDetector {
                 }
                 // Reject code identifiers before computing entropy
                 if Self::is_code_identifier(value) {
+                    return true;
+                }
+                // A run of 5+ identical chars signals padding/templating even when
+                // the value clears the entropy bar (e.g. a base64 blob with `AAAAA`).
+                if Self::has_repeated_run(value, 5) {
                     return true;
                 }
                 // Must have high Shannon entropy (>3.5 bits per char)
@@ -481,11 +550,61 @@ mod tests {
     }
 
     #[test]
-    fn fp_known_prefix_never_filtered() {
-        // Known-prefix patterns bypass false-positive checks entirely
+    fn fp_known_prefix_random_not_filtered() {
+        // Known-prefix kinds skip the kind-specific checks, so a real (random)
+        // token is never filtered — only the universal pre-filter (example
+        // allowlist / EXAMPLE marker / template wrappers) can reject them.
         assert!(!SecretDetector::is_false_positive(
             &SecretKind::AwsAccessKey,
             &tok("AKIA", UPPER_NUM, 16)
+        ));
+    }
+
+    #[test]
+    fn fp_known_prefix_example_key_filtered() {
+        // The canonical AWS docs key carries the EXAMPLE marker and must be
+        // filtered even though known-prefix kinds bypass the kind-specific checks.
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::AwsAccessKey,
+            concat!("AKIA", "IOSFODNN7", "EXAMPLE")
+        ));
+    }
+
+    #[test]
+    fn fp_allowlisted_stripe_test_key_filtered() {
+        // Exact-match allowlist entry with no EXAMPLE marker (Stripe's docs key).
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::StripeKey,
+            concat!("sk_test_", "4eC39HqLyjWDarjtT1zdp7dc")
+        ));
+    }
+
+    #[rstest]
+    #[case("${DATABASE_PASSWORD}")]
+    #[case("{{cf-client-secret}}")]
+    #[case("getPassword()")]
+    #[case("<your-api-key>")]
+    fn fp_template_and_call_values_filtered(#[case] value: &str) {
+        // Universal pre-filter rejects interpolation / template / call wrappers
+        // regardless of kind.
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::GenericSecret,
+            value
+        ));
+    }
+
+    #[test]
+    fn fp_high_entropy_repeated_run_filtered() {
+        // Clears the entropy gate and the 2-of-3 class check, but the 5+ identical
+        // run (`AAAAA`) trips the structural reject.
+        let value = format!("AAAAA{}", opaque(27));
+        assert!(
+            SecretDetector::shannon_entropy(&value) >= 3.5,
+            "fixture must clear the entropy gate so the run check is what rejects it"
+        );
+        assert!(SecretDetector::is_false_positive(
+            &SecretKind::HighEntropyString,
+            &value
         ));
     }
 
@@ -560,6 +679,23 @@ mod tests {
         let findings = SecretDetector::scan(&text);
         assert_eq!(findings.len(), 1);
         assert!(matches!(findings[0].kind, SecretKind::AwsAccessKey));
+    }
+
+    #[test]
+    fn scan_skips_aws_example_key() {
+        // The canonical AWS docs key matches the AKIA pattern but is a published
+        // non-functional example, so it must not be reported.
+        let text = format!(
+            "aws_access_key_id = {}",
+            concat!("AKIA", "IOSFODNN7", "EXAMPLE")
+        );
+        let findings = SecretDetector::scan(&text);
+        assert!(
+            !findings
+                .iter()
+                .any(|f| matches!(f.kind, SecretKind::AwsAccessKey)),
+            "AWS example key should be filtered out"
+        );
     }
 
     #[test]

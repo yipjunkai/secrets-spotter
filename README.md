@@ -282,6 +282,8 @@ OpenAI's legacy `sk-…T3BlbkFJ…` and Square's `sq0atp-` are also labeled `(le
 ### False-positive filtering
 
 - **Placeholder detection** — skips `YOUR_KEY`, `example`, `test`, `TODO`, and similar
+- **Example-key allowlist** — skips published non-functional sample credentials (AWS's `AKIA...EXAMPLE`, Stripe's documentation test keys) across all pattern tiers, including known-prefix
+- **Template / interpolation rejection** — skips `{{...}}`, `${...}`, `<...>`, `%...%`, and `name()` call wrappers
 - **Shannon entropy** — rejects low-entropy values for entropy-gated patterns (UTF-8-aware, counts chars not bytes)
 - **Character class diversity** — requires a mix of upper, lower, digits, or symbols / non-ASCII
 - **English word filtering** — ignores lowercase hyphenated phrases like `my-setting`
