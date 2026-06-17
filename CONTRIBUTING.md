@@ -41,15 +41,11 @@ The recent `ghs_` (GitHub App Installation Token) split in `crates/core/src/patt
    - One positive case (matches a realistic example)
    - One negative case (a similar-looking string that should NOT match)
 4. Update `README.md`:
-   - The pattern count in the headline, Features bullet, and "Detection Strategy" intro
-   - The relevant table under Detection Strategy
+   - The pattern count in the headline, Features bullet, and "Detection patterns" intro
+   - The relevant table under Detection patterns
 5. If the pattern is keyword-based or generic, verify `crates/core/src/detector.rs::is_false_positive` covers the new kind, otherwise placeholders like `YOUR_API_KEY` will trigger false positives.
 
 ## Style
 
 - Rust: `cargo fmt` (rustfmt defaults) + the lints enforced by `just lint`
-- Conventional commits (`feat:` / `fix:` / `docs:` / `chore:` / `perf:` / `refactor:` / `test:`) are encouraged — they will become required if and when release-please is wired up
-
-## Before large PRs
-
-For anything beyond a single pattern addition or small bug fix, please open a draft issue first describing the proposed change. The maintenance budget is finite; up-front scope alignment avoids wasted work.
+- Conventional commits (`feat:` / `fix:` / `docs:` / `chore:` / `perf:` / `refactor:` / `test:`) — release-please parses these to generate `CHANGELOG.md` and choose the next version bump, so following the convention is what surfaces your change in the release notes

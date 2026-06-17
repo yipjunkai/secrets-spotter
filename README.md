@@ -22,7 +22,7 @@ $ secrets-spotter src/ .env
 Three-tier detection pipeline tuned for speed and precision:
 
 1. **Known-prefix patterns (50)** — fixed prefixes baked into the credential format itself (`AKIA`, `ghp_`, `sk-ant-`, `eyJ...eyJ`). Highest confidence, lowest false-positive rate.
-2. **Keyword patterns (12)** — service or generic variable names paired with high-entropy values (`aws_secret_access_key=...`, `authorization: Bearer ...`).
+2. **Keyword patterns (12)** — service or generic variable names paired with high-entropy values (`aws_secret_access_key=...`, `authorization: Bearer ...`); includes 3 keyword-gated legacy formats.
 3. **Entropy fallback (2)** — broad keyword match (`key`, `token`, `secret`) with Shannon-entropy validation (≥3.5 bits/char) to catch novel formats.
 
 A `RegexSet` + `memchr` pre-filter on prefix substrings means non-matching input is rejected without running any regex. False-positive filtering rejects placeholders, code identifiers (camelCase / snake_case / kebab-case), URLs, file paths, and low-diversity character sets before reporting.
@@ -87,7 +87,7 @@ Once the Chrome extension is loaded, browse any website. The icon badge shows th
 ## ✨ Features
 
 - **CLI tool** for scanning files, directories, and stdin — CI/CD ready with JSON and SARIF output
-- **Chrome extension** for real-time scanning of DOM content, fetch, XHR, WebSocket, Server-Sent Events, and cookies
+- **Chrome extension** for real-time scanning of DOM content, network traffic (fetch, XHR, WebSocket, Server-Sent Events), cookies, `localStorage`/`sessionStorage`, the page URL, and external `<script>` bundles
 - **64 detection patterns** — AWS keys, GitHub tokens, Stripe keys, JWTs, private keys, database connection strings, and 58 more (including keyword-gated legacy formats)
 - **False-positive filtering** — Shannon entropy, placeholder detection, code-identifier rejection, URL/path exclusion
 - **JWT decoder in popup** — expandable header / payload JSON view for detected JWTs
@@ -100,7 +100,7 @@ Once the Chrome extension is loaded, browse any website. The icon badge shows th
 - [ ] Firefox support (Manifest V3 port)
 - [ ] User-defined rules via options page
 - [ ] Per-site disable toggle and severity filtering in popup
-- [ ] Allowlisting for known-safe values (public keys, test fixtures)
+- [ ] User-defined allowlisting for known-safe values (beyond the built-in example-key filter)
 - [ ] Dark mode in popup
 
 ## 🤔 Why Secrets Spotter exists
@@ -121,6 +121,7 @@ secrets-spotter/
 ├── Cargo.toml                  # Workspace root
 ├── crates/
 │   ├── core/                   # Shared detection library (no WASM deps)
+│   │   ├── benches/            # Criterion scan bench + CI regression corpus
 │   │   └── src/
 │   │       ├── lib.rs          # Public API (scan_text, merge_findings)
 │   │       ├── detector.rs     # Detection engine + false-positive filtering
@@ -128,7 +129,9 @@ secrets-spotter/
 │   │       ├── types.rs        # SecretKind, Severity, SecretFinding
 │   │       ├── filter.rs       # URL/content filtering (skip CDNs, media)
 │   │       ├── cookies.rs      # Cookie parsing utility
-│   │       └── attributes.rs   # HTML attribute formatting
+│   │       ├── attributes.rs   # HTML attribute formatting
+│   │       ├── test_fixtures.rs # Secret-free fixture builders (tests + fuzz seeds)
+│   │       └── pattern_tests.rs # Per-pattern positive/negative cases
 │   ├── cli/                    # CLI binary
 │   │   └── src/
 │   │       ├── main.rs         # Entry point + arg parsing
@@ -144,8 +147,11 @@ secrets-spotter/
 │   │   ├── interceptor.js      # Network traffic capture (MAIN world)
 │   │   └── content.js          # DOM scanning (ISOLATED world)
 │   ├── popup/
+│   ├── icons/                  # Extension icons (16/32/48/128 px)
+│   ├── test/                   # vitest suite (happy-dom)
 │   └── wasm/                   # Compiled WASM output (build artifacts)
-├── .github/workflows/          # ci (verify), release, security, stale
+├── fuzz/                       # cargo-fuzz workspace (5 targets) — see fuzz/README.md
+├── .github/workflows/          # verify (CI), release, release-please, security, audit, scorecard, fuzz, stale
 └── justfile                    # Build, test, lint, clean recipes
 ```
 
@@ -161,12 +167,15 @@ secrets-spotter [OPTIONS] [PATH...]
 | `-f, --format <FMT>`  | `text` (default), `json`, `sarif`                                              |
 | `-s, --severity <L>`  | Minimum severity: `critical`, `high`, `medium`, `low` (default)                |
 | `-g, --glob <P>`      | Only scan files matching glob (comma-separated, e.g. `"*.js,*.env"`)           |
+| `--no-ignore`         | Also scan files a directory walk would skip via `.gitignore` / `.ignore` (skipped by default) |
 | `--max-size <N>`      | Max file size in bytes (default 2,097,152 = 2 MiB)                             |
 | `--reveal`            | Print full unredacted match values (off by default — secrets are masked)       |
 | `--no-color`          | Disable colored output                                                         |
 | `-q, --quiet`         | Suppress output, exit code only                                                |
 | `-h, --help`          | Print help                                                                     |
 | `-V, --version`       | Print version                                                                  |
+
+> **Directory scans honor `.gitignore`.** Walking a directory skips files matched by `.gitignore` / `.ignore` / git exclude rules — which often includes `.env`. Pass `--no-ignore` to include them, or name the file directly as a path argument (explicitly-listed files are always scanned).
 
 Exit codes:
 
@@ -208,64 +217,68 @@ Doing the fetch in the worker rather than the page's MAIN world means the page's
 
 Match by a fixed prefix or structure baked into the credential itself — highest confidence.
 
-| Service            | Prefix/Structure                                               |
-| ------------------ | -------------------------------------------------------------- |
-| AWS Access Key ID  | `AKIA...`                                                      |
-| AWS Temp Key (STS) | `ASIA...`                                                      |
-| GitHub PAT         | `ghp_` / `github_pat_`                                         |
-| GitHub OAuth       | `gho_`                                                         |
-| GitHub App         | `ghu_` / `ghr_` (36 chars)                                     |
-| GitHub App Install | `ghs_` (legacy 36 chars + new stateless ~520 chars)            |
-| Private Key (PEM)  | `-----BEGIN...PRIVATE KEY-----`                                |
-| Private Key (SSH2) | `---- BEGIN SSH2...` / `PuTTY-User-Key-File-`                  |
-| Password in URL    | `protocol://user:pass@host` (incl. redis, mongodb, amqp, smtp) |
-| JWT                | `eyJ...eyJ...`                                                 |
-| Slack              | `xox[bpors]-`                                                  |
-| Slack App-Level    | `xapp-`                                                        |
-| Google API Key     | `AIza`                                                         |
-| Stripe Secret      | `sk_(live\|test)_`                                             |
-| Stripe Publishable | `pk_(live\|test)_`                                             |
-| Stripe Restricted  | `rk_(live\|test)_`                                             |
-| Stripe Webhook     | `whsec_`                                                       |
-| Twilio API Key SID | `SK` + 32 hex chars                                            |
-| Twilio Account SID | `AC` + 32 hex chars                                            |
-| SendGrid           | `SG.`                                                          |
-| Discord Bot        | `[MNO]...(dot-separated base64)`                               |
-| npm                | `npm_`                                                         |
-| PyPI               | `pypi-`                                                        |
-| Shopify            | `shp(at\|ss\|ca\|pa)_`                                         |
-| Square             | `sq0atp-` / `sq0csp-` / `EAAA`                                 |
-| Anthropic          | `sk-ant-(api03\|admin01\|oat01)-`                              |
-| OpenAI (legacy)    | `sk-...T3BlbkFJ...`                                            |
-| OpenAI (new)       | `sk-(proj\|svcacct\|admin)-...T3BlbkFJ...`                     |
-| DigitalOcean       | `dop_v1_`                                                      |
-| Linear             | `lin_api_`                                                     |
-| PostHog            | `ph[cxsar]_`                                                   |
-| GitLab PAT         | `glpat-`                                                       |
-| Cloudflare API     | `cfat_` / `cfut_` / `cfk_`                                     |
-| Cloudflare Origin  | `v1.0-<24hex>-<146hex>`                                        |
-| Supabase Access    | `sbp_`                                                         |
-| Supabase Secret    | `sb_secret_`                                                   |
-| GCP OAuth          | `ya29.`                                                        |
-| Hashicorp Vault    | `hvs.`                                                         |
-| Doppler            | `dp.(st\|sa\|ct).`                                             |
-| Vercel             | `vc[pirak]_` (vcp_/vci_/vca_/vcr_/vck_)                        |
-| Databricks         | `dapi`                                                         |
-| Grafana            | `glsa_`                                                        |
-| Pulumi             | `pul-`                                                         |
-| Hugging Face       | `hf_`                                                          |
+| Service            | Prefix/Structure                                               | Severity       |
+| ------------------ | -------------------------------------------------------------- | -------------- |
+| Anthropic          | `sk-ant-(api03\|admin01\|oat01)-`                              | Critical       |
+| AWS Access Key ID  | `AKIA...`                                                      | Critical       |
+| AWS Temp Key (STS) | `ASIA...`                                                      | Critical       |
+| Cloudflare API     | `cfat_` / `cfut_` / `cfk_`                                     | Critical       |
+| Cloudflare Origin  | `v1.0-<24hex>-<146hex>`                                        | Critical       |
+| Databricks         | `dapi`                                                         | Critical       |
+| DigitalOcean       | `dop_v1_`                                                      | Critical       |
+| Discord Bot        | `[MNO]...(dot-separated base64)`                               | Critical       |
+| Doppler            | `dp.(st\|sa\|ct\|pt\|scim\|audit).`                            | Critical       |
+| GCP OAuth          | `ya29.`                                                        | Critical       |
+| GitHub App         | `ghu_` / `ghr_` (36 chars)                                     | Critical       |
+| GitHub App Install | `ghs_` (legacy 36 chars + new stateless ~520 chars)            | Critical       |
+| GitHub OAuth       | `gho_`                                                         | Critical       |
+| GitHub PAT         | `ghp_` / `github_pat_`                                         | Critical       |
+| GitLab PAT         | `glpat-`                                                       | Critical       |
+| Google API Key     | `AIza`                                                         | Medium         |
+| Grafana            | `glsa_`                                                        | Critical       |
+| Hashicorp Vault    | `hvs.`                                                         | Critical       |
+| Hugging Face       | `hf_`                                                          | Critical       |
+| JWT                | `eyJ...eyJ...`                                                 | Medium         |
+| Linear             | `lin_api_`                                                     | Critical       |
+| npm                | `npm_`                                                         | Critical       |
+| OpenAI (legacy)    | `sk-...T3BlbkFJ...`                                            | Critical       |
+| OpenAI (new)       | `sk-(proj\|svcacct\|admin)-...T3BlbkFJ...`                     | Critical       |
+| Password in URL    | `protocol://user:pass@host` (incl. redis, mongodb, amqp, smtp) | Critical       |
+| PostHog            | `ph[cxsar]_`                                                   | Low / Critical |
+| Private Key (PEM)  | `-----BEGIN...PRIVATE KEY-----`                                | Critical       |
+| Private Key (SSH2) | `---- BEGIN SSH2...` / `PuTTY-User-Key-File-`                  | Critical       |
+| Pulumi             | `pul-`                                                         | Critical       |
+| PyPI               | `pypi-`                                                        | Critical       |
+| SendGrid           | `SG.`                                                          | Critical       |
+| Shopify            | `shp(at\|ss\|ca\|pa)_`                                         | Critical       |
+| Slack              | `xox[bpors]-`                                                  | Critical       |
+| Slack App-Level    | `xapp-`                                                        | Critical       |
+| Square             | `sq0atp-` / `sq0csp-` / `EAAA`                                 | Critical       |
+| Stripe Publishable | `pk_(live\|test)_`                                             | Low            |
+| Stripe Restricted  | `rk_(live\|test)_`                                             | High           |
+| Stripe Secret      | `sk_(live\|test)_`                                             | Critical       |
+| Stripe Webhook     | `whsec_`                                                       | Critical       |
+| Supabase Access    | `sbp_`                                                         | Critical       |
+| Supabase Secret    | `sb_secret_`                                                   | Critical       |
+| Twilio Account SID | `AC` + 32 hex chars                                            | Low            |
+| Twilio API Key SID | `SK` + 32 hex chars                                            | High           |
+| Vercel             | `vc[pirak]_` (vcp_/vci_/vca_/vcr_/vck_)                        | Critical       |
 
-### Keyword: service-specific (6)
+### Keyword patterns (9)
 
-Match by a service name in the variable name (e.g. `heroku_api_key=...`).
+No fixed prefix on the credential itself — matched by a service or generic variable name sitting next to a high-entropy value (lower confidence than known-prefix, so entropy/format-gated).
 
-AWS Secret Key, Heroku, Azure Subscription Key, Datadog, Cloudflare API Token, Mailgun.
-
-### Keyword: generic dev words (3)
-
-Match by common developer variable names (`api_key=...`, `authorization: Bearer ...`).
-
-Generic API Key, Bearer Token, Generic API Token.
+| Service / Type         | Trigger keyword(s)                             | Value shape       | Severity       |
+| ---------------------- | ---------------------------------------------- | ----------------- | -------------- |
+| AWS Secret Access Key  | `aws_secret_access_key` / `secret_key`         | 40 base64 chars   | Critical       |
+| Azure Subscription Key | `subscription_key` / `ocp-apim-…`              | 32 hex            | High           |
+| Bearer Token           | `authorization:` / `auth:` + `Bearer`          | 20–512 chars      | High           |
+| Cloudflare API Token   | `cloudflare…`                                  | 37–40 chars       | Critical       |
+| Datadog API Key        | `dd_api_key` / `datadog_api_key`               | 32 hex            | Critical       |
+| Generic API Key        | `api_key` / `apikey` / `api_secret`            | 20–64 chars       | Medium         |
+| Generic API Token      | `api_token` / `access_token` / `client_secret` | 20–512 (quoted)   | High           |
+| Heroku API Key         | `heroku_api_key`                               | UUID              | Critical       |
+| Mailgun API Key        | `mailgun…`                                     | `key-` + 32       | High           |
 
 ### Entropy-based fallback (2)
 
@@ -287,7 +300,7 @@ OpenAI's legacy `sk-…T3BlbkFJ…` and Square's `sq0atp-` are also labeled `(le
 - **Example-key allowlist** — skips published non-functional sample credentials (AWS's `AKIA...EXAMPLE`, Stripe's documentation test keys) across all pattern tiers, including known-prefix
 - **Template / interpolation rejection** — skips `{{...}}`, `${...}`, `<...>`, `%...%`, and `name()` call wrappers
 - **Shannon entropy** — rejects low-entropy values for entropy-gated patterns (UTF-8-aware, counts chars not bytes)
-- **Character class diversity** — requires a mix of upper, lower, digits, or symbols / non-ASCII
+- **Character class diversity** — high-entropy values must mix at least 2 of: uppercase, lowercase, digits (symbols / non-ASCII don't count toward the threshold)
 - **English word filtering** — ignores lowercase hyphenated phrases like `my-setting`
 - **URL / path exclusion** — ignores values that look like URLs or file paths
 - **Code identifier rejection** — skips camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case, and dot-notation values

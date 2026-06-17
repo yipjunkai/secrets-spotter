@@ -5,8 +5,8 @@ the browser extension feeds untrusted page text, network bodies, cookies, and
 URLs into. The scanner's job *is* parsing hostile input, so this is a primary
 correctness lane, not an edge-case afterthought.
 
-This is a standalone Cargo workspace (excluded from the root one) so its nightly
-+ `libfuzzer-sys` toolchain never touches normal `cargo check`/`test`/`build`.
+This is a standalone Cargo workspace (excluded from the root one) so its
+nightly + `libfuzzer-sys` toolchain never touches normal `cargo check`/`test`/`build`.
 
 ## Targets
 

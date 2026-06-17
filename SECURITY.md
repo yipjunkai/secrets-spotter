@@ -2,11 +2,11 @@
 
 ## Supported versions
 
-| Version | Supported |
-| ------- | --------- |
-| 1.1.x   | yes       |
+Secrets Spotter is solo-maintained: only the **latest released
+minor version** receives security fixes. Older minors are not patched —
+upgrade to the most recent [release][rel] before reporting.
 
-Until Secrets Spotter reaches 2.0, only the latest minor version receives security fixes.
+[rel]: https://github.com/yipjunkai/secrets-spotter/releases/latest
 
 ## Reporting a vulnerability
 
