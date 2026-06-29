@@ -59,7 +59,7 @@ jobs:
         # source on every run (~3 min of the old security-workflow wall clock).
         # Deliberately manual tool pin (no Dependabot ecosystem); the daily
         # cron exercises it, so a stale/broken pin is loud.
-        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
+        uses: taiki-e/install-action@9bcaee1dcae34154180f412e2fa69355a7cda9f6 # v2.82.6
         with:
           tool: cargo-audit@0.22.2
       - name: Audit the workspace lockfile
