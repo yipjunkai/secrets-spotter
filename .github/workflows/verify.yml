@@ -81,7 +81,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Secret Scanning
-        uses: trufflesecurity/trufflehog@d411fff7b8879a62509f3fa98c07f247ac089a51 # v3.95.5
+        uses: trufflesecurity/trufflehog@30d5bb91af1a771378349dbbb0c82129392acf70 # v3.95.6
         with:
           extra_args: --results=verified,unknown
 
@@ -162,7 +162,7 @@ jobs:
       # The tool version is a deliberately manual pin (install-action tool
       # strings have no Dependabot ecosystem); exercised on every code PR.
       - name: Install wasm-pack
-        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
+        uses: taiki-e/install-action@9bcaee1dcae34154180f412e2fa69355a7cda9f6 # v2.82.6
         with:
           tool: wasm-pack@0.15.0
       - name: Build
