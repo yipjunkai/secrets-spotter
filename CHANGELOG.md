@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/yipjunkai/secrets-spotter/compare/v1.2.0...v1.3.0) (2026-07-01)
+
+
+### Features
+
+* **core:** filter published example keys and template placeholders ([#44](https://github.com/yipjunkai/secrets-spotter/issues/44)) ([91b5e74](https://github.com/yipjunkai/secrets-spotter/commit/91b5e7404f577572aa2cc7e17b68f2b8ac4f1885))
+* **extension:** scan external JS bundles from the service worker ([#48](https://github.com/yipjunkai/secrets-spotter/issues/48)) ([76af730](https://github.com/yipjunkai/secrets-spotter/commit/76af730113fec39a877c2a6ca13ec841c50b37f6))
+* **extension:** scan localStorage/sessionStorage and the URL ([#47](https://github.com/yipjunkai/secrets-spotter/issues/47)) ([9e664a6](https://github.com/yipjunkai/secrets-spotter/commit/9e664a69aefcb4fcf5ef588d68ff48079732d822))
+
+
+### Documentation
+
+* audit and refresh repo Markdown (README, CONTRIBUTING, SECURITY, fuzz) ([#49](https://github.com/yipjunkai/secrets-spotter/issues/49)) ([b9b7ccb](https://github.com/yipjunkai/secrets-spotter/commit/b9b7ccbe99d44bcc883b5f50deb998e39df3d971))
+
 ## [1.2.0](https://github.com/yipjunkai/secrets-spotter/compare/v1.1.0...v1.2.0) (2026-06-14)
 
 

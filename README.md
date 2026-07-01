@@ -35,7 +35,7 @@ Pre-built CLI binaries for Linux x86_64, macOS (Intel + Apple Silicon), and Wind
 
 ```bash
 # Replace TARGET with your platform (x86_64-unknown-linux-gnu, aarch64-apple-darwin, ...)
-curl -L https://github.com/yipjunkai/secrets-spotter/releases/latest/download/secrets-spotter-v1.2.0-${TARGET}.tar.gz | tar xz # x-release-please-version
+curl -L https://github.com/yipjunkai/secrets-spotter/releases/latest/download/secrets-spotter-v1.3.0-${TARGET}.tar.gz | tar xz # x-release-please-version
 ```
 
 ### From source
