@@ -36,7 +36,7 @@ jobs:
       matrix:
         target: [scan_text, merge_findings, parse_cookies, format_attributes, should_scan]
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Install the pinned nightly from fuzz/rust-toolchain.toml
@@ -52,14 +52,14 @@ jobs:
         # Prebuilt, checksum-verified binary (vs a ~min source compile). The
         # tool version is a deliberately manual pin — no Dependabot ecosystem
         # covers install-action tool strings; every run exercises it.
-        uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2.81.10
+        uses: taiki-e/install-action@9bcaee1dcae34154180f412e2fa69355a7cda9f6 # v2.82.6
         with:
           tool: cargo-fuzz@0.13.2
       - name: Restore evolved corpus
         # The run_id-suffixed key never hits exactly, so the post-step always
         # saves this run's evolved corpus; restore-keys pulls the newest prior
         # one, so coverage compounds across nightly runs instead of restarting.
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
