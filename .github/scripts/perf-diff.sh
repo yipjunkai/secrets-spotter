@@ -7,8 +7,11 @@
 # Usage: perf-diff.sh <base-baseline> <new-baseline> <threshold-fraction>
 #   e.g. perf-diff.sh base head 0.10   # fail if <new> is >10% slower than <base>
 #
-# Bootstrap-tolerant: if no <base> baselines exist (the first PR to introduce
-# the bench harness), prints a notice and exits 0 — comparisons begin next PR.
+# Bootstrap-tolerant, but fail-closed: if no <base> baselines exist AND the
+# caller set PERF_BOOTSTRAP=1 (the base ref genuinely predates the bench), print
+# a notice and exit 0 — comparisons begin next PR. Missing baselines WITHOUT
+# that signal mean the base bench failed to produce output, so exit 1 rather
+# than passing an uncompared run (the old unconditional exit 0 failed open).
 set -euo pipefail
 
 BASE_NAME=${1:?usage: perf-diff.sh <base> <new> <threshold>}
@@ -59,8 +62,17 @@ echo ""
 echo "compared ${compared} benchmark(s), skipped ${skipped}."
 
 if [ "$compared" -eq 0 ]; then
-  echo "::notice::no comparable baselines (bootstrap run); nothing to gate."
-  exit 0
+  # No base baselines to compare against. Legitimate ONLY on the first PR that
+  # introduces the bench (base ref lacks benches/scan.rs), which the base-bench
+  # step signals via PERF_BOOTSTRAP=1. Any other cause — the base-ref bench
+  # crashed/flaked under continue-on-error and wrote no baselines — must NOT
+  # pass silently, or the gate fails open and greens an uncompared change.
+  if [ "${PERF_BOOTSTRAP:-}" = "1" ]; then
+    echo "::notice::no comparable baselines (base ref predates the bench harness); bootstrap run, nothing to gate."
+    exit 0
+  fi
+  echo "::error::no comparable baselines, but this is not a bootstrap run — the base-ref benchmark produced no baselines (it likely failed or was skipped). Refusing to green the perf gate on an uncompared change; re-run the job."
+  exit 1
 fi
 if [ "$failures" -gt 0 ]; then
   echo "::error::${failures} benchmark(s) exceeded the ${ceiling_pct}% regression ceiling."

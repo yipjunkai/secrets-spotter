@@ -276,6 +276,29 @@ impl SecretDetector {
         if s.is_empty() {
             return 0.0;
         }
+        // ASCII fast path: count bytes into a fixed stack histogram — no heap
+        // allocation, no hashing. Every pattern's value class is ASCII-scoped so
+        // this is the common case, and byte counts equal char counts here, so
+        // the result is identical to the char path below.
+        if s.is_ascii() {
+            let mut freq = [0u32; 128];
+            for &b in s.as_bytes() {
+                freq[b as usize] += 1;
+            }
+            let len = s.len() as f64;
+            let mut entropy = 0.0f64;
+            for &count in &freq {
+                if count != 0 {
+                    let p = count as f64 / len;
+                    entropy -= p * p.log2();
+                }
+            }
+            return entropy;
+        }
+        // Non-ASCII fallback: count Unicode scalar values, not bytes. Only the
+        // GenericSecret tier admits multi-byte UTF-8, where the per-symbol
+        // buckets and the length must stay in chars — byte counting would change
+        // the value and could flip the entropy gate.
         use std::collections::HashMap;
         let mut freq: HashMap<char, u32> = HashMap::new();
         let mut char_count = 0u32;
@@ -315,19 +338,26 @@ impl SecretDetector {
         let mut kept: Vec<SecretFinding> = Vec::with_capacity(findings.len());
         let mut drain = findings.drain(..);
 
-        if let Some(first) = drain.next() {
-            kept.push(first);
-        }
+        // Track the current overlap cluster's coverage end separately from the
+        // kept representative. Swapping the representative for a narrower, higher
+        // severity match must NOT shrink the window used to absorb later
+        // overlapping findings — otherwise a match nested inside the original
+        // wide span leaks out as a spurious separate finding.
+        let first = drain.next().expect("len > 1 checked above");
+        let mut cluster_end = first.end;
+        kept.push(first);
 
         for f in drain {
-            let last = kept.last().unwrap();
-            if f.start < last.end {
-                // Overlapping — keep the higher severity (lower ordinal)
-                if f.severity < last.severity {
+            if f.start < cluster_end {
+                // Overlapping the cluster — extend coverage, and keep the higher
+                // severity (lower ordinal) as the representative.
+                cluster_end = cluster_end.max(f.end);
+                if f.severity < kept.last().unwrap().severity {
                     *kept.last_mut().unwrap() = f;
                 }
-                // else: discard f, keep current last
+                // else: discard f, keep current representative
             } else {
+                cluster_end = f.end;
                 kept.push(f);
             }
         }
@@ -641,6 +671,28 @@ mod tests {
         ];
         SecretDetector::deduplicate(&mut findings);
         assert_eq!(findings.len(), 2);
+    }
+
+    #[test]
+    fn dedup_nested_overlap_absorbs_interior_finding() {
+        // A wide low-severity span (0..100) fully contains a narrower, higher
+        // severity match (10..20) at its front plus another interior match
+        // (30..40). The interior finding must be absorbed by the cluster's
+        // original coverage window even after the representative is swapped to
+        // the higher-severity match — otherwise the coverage end shrinks to 20
+        // and the interior finding leaks out as a spurious separate finding.
+        let mut findings = vec![
+            make_finding(0, 100, Severity::Low),
+            make_finding(10, 20, Severity::Critical),
+            make_finding(30, 40, Severity::Medium),
+        ];
+        SecretDetector::deduplicate(&mut findings);
+        assert_eq!(
+            findings.len(),
+            1,
+            "interior finding must be absorbed, not leaked"
+        );
+        assert_eq!(findings[0].severity, Severity::Critical);
     }
 
     // ── merge_findings ───────────────────────────────────────────────

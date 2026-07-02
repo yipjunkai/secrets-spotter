@@ -294,6 +294,10 @@ jobs:
           git checkout -f --detach "origin/$BASE_REF"
           if [ ! -f crates/core/benches/scan.rs ]; then
             echo "::notice::no benches/scan.rs on base ref; bootstrapping baselines this run."
+            # Signal a genuine bootstrap to perf-diff.sh so it distinguishes this
+            # from a base bench that failed and produced no baselines (which must
+            # NOT pass the gate). See .github/scripts/perf-diff.sh.
+            echo "PERF_BOOTSTRAP=1" >> "$GITHUB_ENV"
             exit 0
           fi
           cargo bench -p secrets-spotter-core --bench scan -- --save-baseline base
