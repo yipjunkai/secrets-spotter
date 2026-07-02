@@ -1,0 +1,12 @@
+# Enable WebAssembly fixed-width SIMD (SIMD128) for all wasm32 builds.
+#
+# wasm has no runtime CPU-feature detection, so the SIMD128 code paths that
+# `memchr` and aho-corasick's Teddy prefilter already ship (pulled in via the
+# regex `perf` feature) only compile in when `+simd128` is set at build time.
+# Without this flag the extension's literal prefilter — the hot path over DOM,
+# network bodies, and JS bundles — runs scalar/SWAR. All evergreen browsers
+# support wasm SIMD (Chrome since 91; the manifest requires 111+), so it is safe
+# for the shipped MV3 extension. Scoped to wasm32 only, so native CLI builds are
+# unaffected. Re-check `just check-wasm-size` after regex/dependency changes.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]
