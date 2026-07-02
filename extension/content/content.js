@@ -27,7 +27,7 @@
   // Hash-based cache to skip already-scanned text (capped to prevent unbounded growth on SPAs)
   const scannedHashes = new Set();
   const MAX_HASHES = 500;
-  const MAX_SCAN_SIZE = 2_000_000; // 2MB — matches WASM cap in lib.rs
+  const MAX_SCAN_SIZE = 2_000_000; // 2 MB cap; core WASM independently caps at 2 MiB, so this JS cut is the binding one
   let observer = null;
 
   async function hashText(text) {
