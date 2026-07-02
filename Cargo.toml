@@ -17,6 +17,15 @@ license = "MIT OR Apache-2.0"
 [profile.release]
 opt-level = "s"
 lto = true
+# No unwinding: this tool has no `catch_unwind` recovery path, so unwind tables
+# and landing pads are pure overhead. `release-cli` inherits this and it trims
+# the native CLI binary by roughly 15-20% (unwinding is a large share of a small
+# Rust binary). On wasm32-unknown-unknown panics already abort — no unwinding
+# runtime exists — so this is size-neutral for the extension, just explicit
+# intent. cargo forces `unwind` for test/bench builds regardless, so `cargo
+# test`/`bench` are unaffected, and the extension's `console_error_panic_hook`
+# still reports (it runs before the abort).
+panic = "abort"
 
 # The CLI is a throughput tool, but `release` is size-optimized for the WASM
 # build it shares (`opt-level = "s"`). wasm-pack can't take a custom profile, so
