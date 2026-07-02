@@ -276,6 +276,29 @@ impl SecretDetector {
         if s.is_empty() {
             return 0.0;
         }
+        // ASCII fast path: count bytes into a fixed stack histogram — no heap
+        // allocation, no hashing. Every pattern's value class is ASCII-scoped so
+        // this is the common case, and byte counts equal char counts here, so
+        // the result is identical to the char path below.
+        if s.is_ascii() {
+            let mut freq = [0u32; 128];
+            for &b in s.as_bytes() {
+                freq[b as usize] += 1;
+            }
+            let len = s.len() as f64;
+            let mut entropy = 0.0f64;
+            for &count in &freq {
+                if count != 0 {
+                    let p = count as f64 / len;
+                    entropy -= p * p.log2();
+                }
+            }
+            return entropy;
+        }
+        // Non-ASCII fallback: count Unicode scalar values, not bytes. Only the
+        // GenericSecret tier admits multi-byte UTF-8, where the per-symbol
+        // buckets and the length must stay in chars — byte counting would change
+        // the value and could flip the entropy gate.
         use std::collections::HashMap;
         let mut freq: HashMap<char, u32> = HashMap::new();
         let mut char_count = 0u32;
