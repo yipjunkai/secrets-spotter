@@ -1,11 +1,11 @@
 name: scorecard
 
-# OSSF Scorecard publishes a security posture score to securityscorecards.dev.
+# OSSF Scorecard publishes a security posture score to scorecard.dev.
 # Results are uploaded as SARIF to GitHub Code Scanning, so findings appear in
 # the repo's Security tab in addition to the public badge.
 #
 # The first run after pushing populates the badge URL at
-# https://api.securityscorecards.dev/projects/github.com/yipjunkai/secrets-spotter/badge.
+# https://api.scorecard.dev/projects/github.com/yipjunkai/secrets-spotter/badge.
 
 on:
   branch_protection_rule:
