@@ -1,5 +1,5 @@
 // Runs in MAIN world to intercept all text-based content the browser receives.
-// Patches fetch(), XMLHttpRequest, WebSocket, and EventSource.
+// Patches fetch(), XMLHttpRequest, WebSocket, and EventSource, and scans document.cookie.
 // Posts captured text back to the content script via window.postMessage.
 // (External <script>/<link> files are fetched + scanned by the service worker,
 // driven by content.js — the worker isn't bound by the page's CSP.)

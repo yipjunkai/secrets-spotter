@@ -1,7 +1,7 @@
 # Secrets Spotter
 
 [![CI](https://github.com/yipjunkai/secrets-spotter/actions/workflows/verify.yml/badge.svg)](https://github.com/yipjunkai/secrets-spotter/actions/workflows/verify.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/yipjunkai/secrets-spotter/badge)](https://securityscorecards.dev/viewer/?uri=github.com/yipjunkai/secrets-spotter)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/yipjunkai/secrets-spotter/badge)](https://scorecard.dev/viewer/?uri=github.com/yipjunkai/secrets-spotter)
 [![Release](https://img.shields.io/github/v/release/yipjunkai/secrets-spotter)](https://github.com/yipjunkai/secrets-spotter/releases/latest)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#-license)
 
