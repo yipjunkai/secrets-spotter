@@ -41,7 +41,7 @@ jobs:
         with:
           # paths-filter's push-path git fetch works anonymously (public repo).
           persist-credentials: false
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         with:
           # 'every': a file counts as code only if it matches ALL patterns —
@@ -58,7 +58,7 @@ jobs:
               - '!.github/ISSUE_TEMPLATE/**'
               - '!.github/FUNDING.yml'
               - '!.github/PULL_REQUEST_TEMPLATE.md'
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter-perf
         with:
           # Separate step: the 'code' filter above needs quantifier 'every' for
@@ -83,7 +83,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Secret Scanning
-        uses: trufflesecurity/trufflehog@30d5bb91af1a771378349dbbb0c82129392acf70 # v3.95.6
+        uses: trufflesecurity/trufflehog@27b0417c16317ca9a472a9a8092acce143b49c55 # v3.95.9
         with:
           extra_args: --results=verified,unknown
 
@@ -164,7 +164,7 @@ jobs:
       # The tool version is a deliberately manual pin (install-action tool
       # strings have no Dependabot ecosystem); exercised on every code PR.
       - name: Install wasm-pack
-        uses: taiki-e/install-action@9bcaee1dcae34154180f412e2fa69355a7cda9f6 # v2.82.6
+        uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: wasm-pack@0.15.0
       - name: Build
