@@ -8,7 +8,7 @@
 //! wrongly-prefixed to be secret-shaped may stay as plain literals.
 
 use crate::detector::SecretDetector;
-use crate::test_fixtures::{body, opaque, tok, ALNUM, DIGITS, HEX, UPPER_NUM, URL_SAFE};
+use crate::test_fixtures::{body, gh_token, opaque, tok, ALNUM, DIGITS, HEX, UPPER_NUM, URL_SAFE};
 use crate::types::SecretKind;
 use rstest::rstest;
 
@@ -30,17 +30,18 @@ fn has_finding(text: &str, expected: &SecretKind) -> bool {
 // AWS Temporary Access Key (STS)
 #[case(&tok("ASIA", UPPER_NUM, 16), SecretKind::AwsTempAccessKey, true)]
 #[case("ASIA", SecretKind::AwsTempAccessKey, false)] // too short
-// GitHub Personal Access Token — classic and fine-grained
-#[case(&tok("ghp_", ALNUM, 36), SecretKind::GitHubToken, true)]
-#[case(&tok("github_pat_", ALNUM, 82), SecretKind::GitHubToken, true)]
+// GitHub Personal Access Token — classic (checksum-validated) and fine-grained
+#[case(&gh_token("ghp_"), SecretKind::GitHubToken, true)]
+#[case(&tok("ghp_", ALNUM, 36), SecretKind::GitHubToken, false)] // valid shape, random body → CRC32 checksum fails
+#[case(&tok("github_pat_", ALNUM, 82), SecretKind::GitHubToken, true)] // github_pat_ carries no checksum
 #[case("ghp_tooshort", SecretKind::GitHubToken, false)]
 // GitHub OAuth Token
-#[case(&tok("gho_", ALNUM, 36), SecretKind::GitHubOAuthToken, true)]
+#[case(&gh_token("gho_"), SecretKind::GitHubOAuthToken, true)]
 #[case("gho_short", SecretKind::GitHubOAuthToken, false)]
-// GitHub App Tokens
-#[case(&tok("ghu_", ALNUM, 36), SecretKind::GitHubAppToken, true)]
-#[case(&tok("ghs_", ALNUM, 36), SecretKind::GitHubAppToken, true)]
-#[case(&tok("ghr_", ALNUM, 36), SecretKind::GitHubAppToken, true)]
+// GitHub App Tokens (ghu_/ghr_ + the fixed-length ghs_ carry the checksum)
+#[case(&gh_token("ghu_"), SecretKind::GitHubAppToken, true)]
+#[case(&gh_token("ghs_"), SecretKind::GitHubAppToken, true)]
+#[case(&gh_token("ghr_"), SecretKind::GitHubAppToken, true)]
 #[case(&tok("ghx_", ALNUM, 36), SecretKind::GitHubAppToken, false)] // wrong letter
 fn github_and_aws_patterns(
     #[case] input: &str,

@@ -298,6 +298,7 @@ OpenAI's legacy `sk-…T3BlbkFJ…` and Square's `sq0atp-` are also labeled `(le
 
 - **Placeholder detection** — skips `YOUR_KEY`, `example`, `test`, `TODO`, and similar
 - **Example-key allowlist** — skips published non-functional sample credentials (AWS's `AKIA...EXAMPLE`, Stripe's documentation test keys) across all pattern tiers, including known-prefix
+- **GitHub token checksum validation** — 2021+ `gh*_` tokens (`ghp_`/`gho_`/`ghu_`/`ghr_`/`ghs_`) embed a base62 CRC32 checksum in their last 6 characters; a token of that exact 40-char format whose checksum fails to validate is rejected **offline, with no network call**, deterministically killing random `ghp_`-shaped look-alikes (`github_pat_`, the long stateless `ghs_`, and legacy 40-hex tokens carry no such checksum and pass through untouched)
 - **Template / interpolation rejection** — skips `{{...}}`, `${...}`, `<...>`, `%...%`, and `name()` call wrappers
 - **Shannon entropy** — rejects low-entropy values for entropy-gated patterns (UTF-8-aware, counts chars not bytes)
 - **Character class diversity** — high-entropy values must mix at least 2 of: uppercase, lowercase, digits (symbols / non-ASCII don't count toward the threshold)

@@ -41,3 +41,16 @@ pub fn tok(prefix: &str, alphabet: &str, len: usize) -> String {
 pub fn opaque(len: usize) -> String {
     format!("9{}", body(ALNUM, len - 1))
 }
+
+/// A GitHub token body — 30 entropy chars + a valid 6-char CRC32 checksum, from
+/// a published reference vector. The checksum covers only the chars after the
+/// first `_` (see `github_checksum`), so it is prefix-agnostic: prepend any
+/// `gh*_` prefix for a checksum-valid token. Split so no contiguous `gh*_…`
+/// token literal ever appears in source (push protection / `just scan-self`).
+pub const GH_CHECKSUMMED_BODY: &str = concat!("zQWBuTSOoRi4A9sp", "HcVY5ncnsDkxkJ0mLq17");
+
+/// Build a checksum-valid GitHub token with the given `gh*_` prefix, e.g.
+/// `gh_token("ghp_")`. Its trailing CRC32 checksum passes `github_checksum`.
+pub fn gh_token(prefix: &str) -> String {
+    format!("{prefix}{GH_CHECKSUMMED_BODY}")
+}

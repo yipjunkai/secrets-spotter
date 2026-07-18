@@ -31,7 +31,7 @@ use secrets_spotter_core::types::{SecretFinding, SecretKind, Severity};
 #[allow(dead_code)]
 #[path = "../src/test_fixtures.rs"]
 mod fixtures;
-use fixtures::{body, opaque, tok, ALNUM, DIGITS, UPPER_NUM, URL_SAFE};
+use fixtures::{body, gh_token, opaque, tok, ALNUM, DIGITS, UPPER_NUM, URL_SAFE};
 
 /// How an intercepted payload reaches the scanner — mirrors the extension's
 /// source types and selects the preprocessing step.
@@ -163,19 +163,19 @@ fn find_sites(subdir: &str) -> Vec<(String, PathBuf)> {
 fn assemble_secrets() -> Vec<String> {
     vec![
         tok("AKIA", UPPER_NUM, 16),                               // AWS access key
-        tok("ghp_", ALNUM, 36),                                   // GitHub PAT
-        format!("sk_live_{}", body(ALNUM, 24)),                   // Stripe secret key
+        gh_token("ghp_"),                       // GitHub PAT (valid CRC32 checksum)
+        format!("sk_live_{}", body(ALNUM, 24)), // Stripe secret key
         format!("xoxb-{}-{}", body(DIGITS, 12), body(ALNUM, 24)), // Slack bot token
-        tok("AIza", URL_SAFE, 35),                                // Google API key
+        tok("AIza", URL_SAFE, 35),              // Google API key
         format!(
             "eyJ{}.eyJ{}.{}",
             body(URL_SAFE, 16),
             body(URL_SAFE, 24),
             body(URL_SAFE, 32)
         ), // JWT
-        tok("npm_", ALNUM, 36),                                   // npm token
-        format!("api_key = \"{}\"", opaque(32)),                  // generic API key (code style)
-        format!("session_secret = \"{}\"", opaque(40)),           // high-entropy secret
+        tok("npm_", ALNUM, 36),                 // npm token
+        format!("api_key = \"{}\"", opaque(32)), // generic API key (code style)
+        format!("session_secret = \"{}\"", opaque(40)), // high-entropy secret
     ]
 }
 

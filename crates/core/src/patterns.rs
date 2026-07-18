@@ -603,7 +603,7 @@ pub static PATTERNS: LazyLock<Vec<SecretPattern>> = LazyLock::new(|| {
 #[cfg(test)]
 mod tests {
     use crate::scan_text;
-    use crate::test_fixtures::{body, ALNUM, DIGITS, URL_SAFE};
+    use crate::test_fixtures::{body, gh_token, ALNUM, DIGITS, URL_SAFE};
     use crate::types::SecretKind;
 
     fn matches_github_app(text: &str) -> bool {
@@ -614,7 +614,9 @@ mod tests {
 
     #[test]
     fn ghs_legacy_36_char_token_matches() {
-        let token = format!("ghs_{}", body(ALNUM, 36));
+        // The fixed 40-char ghs_ form is a 2021-format token, so it must carry a
+        // valid CRC32 checksum to survive false-positive filtering.
+        let token = gh_token("ghs_");
         assert_eq!(token.len(), 40);
         assert!(matches_github_app(&token));
     }

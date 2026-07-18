@@ -2,6 +2,7 @@ pub mod attributes;
 pub mod cookies;
 pub mod detector;
 pub mod filter;
+pub mod github_checksum;
 pub mod patterns;
 pub mod types;
 

@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 
 use regex::{Regex, RegexSet};
 
+use crate::github_checksum;
 use crate::patterns::PATTERNS;
 use crate::types::{SecretFinding, SecretKind};
 
@@ -266,6 +267,16 @@ impl SecretDetector {
                     return true;
                 }
                 false
+            }
+            SecretKind::GitHubToken | SecretKind::GitHubOAuthToken | SecretKind::GitHubAppToken => {
+                // 2021+ `gh*_` tokens embed a base62 CRC32 checksum in their last
+                // 6 chars. Reject one of that exact 40-char format whose checksum
+                // fails to validate — an offline, deterministic false-positive
+                // filter for random `gh*_`-shaped strings. Other GitHub formats
+                // (`github_pat_`, the long stateless `ghs_`, legacy 40-hex) don't
+                // carry this checksum and pass through untouched.
+                github_checksum::is_checksummed_github_token(value)
+                    && !github_checksum::checksum_valid(value)
             }
             _ => false,
         }
