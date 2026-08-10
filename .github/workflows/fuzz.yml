@@ -36,7 +36,7 @@ jobs:
       matrix:
         target: [scan_text, merge_findings, parse_cookies, format_attributes, should_scan]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Install the pinned nightly from fuzz/rust-toolchain.toml
@@ -45,14 +45,14 @@ jobs:
         # and nothing in this workflow needs to stay in sync.
         run: rustup toolchain install
         working-directory: fuzz
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: fuzz
       - name: Install cargo-fuzz
         # Prebuilt, checksum-verified binary (vs a ~min source compile). The
         # tool version is a deliberately manual pin — no Dependabot ecosystem
         # covers install-action tool strings; every run exercises it.
-        uses: taiki-e/install-action@9bcaee1dcae34154180f412e2fa69355a7cda9f6 # v2.82.6
+        uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2.85.10
         with:
           tool: cargo-fuzz@0.13.2
       - name: Restore evolved corpus
